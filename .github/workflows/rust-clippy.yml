@@ -1,0 +1,28 @@
+name: clippy
+
+on:
+  pull_request:
+    branches: ["*"]
+    paths: ["**/*.rs"]
+  push:
+    branches: ["*"]
+    tags-ignore: ["v*"]
+    paths: ["**/*.rs"]
+  workflow_dispatch:
+
+jobs:
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        uses: moonrepo/setup-rust@v1
+        with:
+          components: clippy
+
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features
+        env:
+          RUSTFLAGS: -Dwarnings

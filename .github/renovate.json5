@@ -1,0 +1,20 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)",
+    ":semanticCommitScope(deps)",
+    "group:allNonMajor",
+  ],
+  postUpdateOptions: [
+    // https://docs.renovatebot.com/golang/#module-tidying
+    "gomodTidy",
+  ],
+  packageRules: [
+    {
+      matchManagers: ["github-actions"],
+      semanticCommitType: "ci",
+    },
+  ],
+}

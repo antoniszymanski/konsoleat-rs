@@ -1,0 +1,40 @@
+name: release-notes
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  initial-release:
+    if: github.ref == 'refs/tags/v0.1.0'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update an initial release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: |
+            Initial release
+
+            **Full changelog**: https://github.com/${{ github.repository }}/commits/v0.1.0
+
+  regular-release:
+    if: github.ref != 'refs/tags/v0.1.0'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Generate changelog
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v6
+        with:
+          mode: COMMIT
+          configuration: .github/changelog-config.json
+
+      - name: Update release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ steps.changelog.outputs.changelog }}

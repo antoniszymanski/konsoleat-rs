@@ -1,0 +1,21 @@
+name: typos
+
+on:
+  pull_request:
+    branches: ["*"]
+    paths: ["**/*.rs", "typos.toml"]
+  push:
+    branches: ["*"]
+    tags-ignore: ["v*"]
+    paths: ["**/*.rs", "typos.toml"]
+  workflow_dispatch:
+
+jobs:
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run typos
+        uses: crate-ci/typos@v1
