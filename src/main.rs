@@ -297,7 +297,7 @@ async fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWin
     default_service = "org.kde.KWin",
     default_path = "/Scripting"
 )]
-pub trait Scripting {
+trait Scripting {
     #[zbus(name = "loadScript")]
     fn load_script(&self, file_path: &Path, plugin_name: &Path) -> zbus::Result<i32>;
 
@@ -309,7 +309,7 @@ pub trait Scripting {
 }
 
 #[proxy(interface = "org.kde.kwin.Script", default_service = "org.kde.KWin")]
-pub trait Script {
+trait Script {
     #[zbus(name = "run")]
     fn run(&self) -> zbus::Result<()>;
 
