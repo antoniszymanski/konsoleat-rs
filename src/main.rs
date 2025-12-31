@@ -191,7 +191,7 @@ async fn list_sessions(conn: &Connection, service_name: &str, window_id: &str) -
     .deserialize::<Vec<&str>>()
     .context(CallSessionListCtx)?
     .into_iter()
-    .map(|s| s.parse().context(ParseSessionIdCtx { input: s.to_owned() }))
+    .map(|s| s.parse().context(ParseSessionIdCtx { input: s }))
     .collect()
 }
 
