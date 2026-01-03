@@ -209,7 +209,7 @@ async fn get_session_cwd(
     service_name: &str,
     session_id: i32,
 ) -> Result<PathBuf, GetSessionCwdError> {
-    let pid: i32 = conn
+    let pid = conn
         .call_method(
             Some(service_name),
             format!("/Sessions/{session_id}"),
