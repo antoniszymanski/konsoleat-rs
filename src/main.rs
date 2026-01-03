@@ -118,8 +118,7 @@ async fn main() -> Result<(), Error> {
             .context(LaunchKonsoleCtx)?
             .id(),
     };
-    activate_windows(&conn, pid).await.context(ActivateWindowsCtx)?;
-    Ok(())
+    activate_windows(&conn, pid).await.context(ActivateWindowsCtx)
 }
 
 async fn list_services(conn: &Connection) -> zbus::Result<Vec<Box<str>>> {
