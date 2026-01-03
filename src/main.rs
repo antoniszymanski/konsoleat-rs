@@ -34,6 +34,8 @@ enum Error {
     ListServices { source: zbus::Error },
     #[snafu(display("Failed to list windows of the service"))]
     ListWindows { source: ListWindowsError },
+    #[snafu(display("Failed to get current session"))]
+    GetCurrentSession { source: zbus::Error },
     #[snafu(display("Failed to list sessions of the window"))]
     ListSessions { source: ListSessionsError },
     #[snafu(display("Failed to get current working directory of the session"))]
@@ -63,6 +65,17 @@ async fn main() -> Result<(), Error> {
         for window_id in windows {
             if first_window.is_none() {
                 first_window = Some((service_name.clone(), window_id.clone()))
+            }
+            let current_session = get_current_session(&conn, &service_name, &window_id)
+                .await
+                .context(GetCurrentSessionCtx)?;
+            let cwd = get_session_cwd(&conn, &service_name, current_session)
+                .await
+                .context(GetSessionCwdCtx)?;
+            if cli.workdir == cwd {
+                let pid = get_service_pid(&conn, &service_name).await.context(GetServicePidCtx)?;
+                activate_windows(&conn, pid).await.context(ActivateWindowsCtx)?;
+                return Ok(());
             }
             let sessions = list_sessions(&conn, &service_name, &window_id)
                 .await
@@ -213,6 +226,19 @@ async fn get_session_cwd(
         .context(ReadProcessCwdCtx { pid })?
         .cwd()
         .context(ReadProcessCwdCtx { pid })
+}
+
+async fn get_current_session(conn: &Connection, service_name: &str, window_id: &str) -> zbus::Result<i32> {
+    conn.call_method(
+        Some(service_name),
+        format!("/Windows/{window_id}"),
+        Some("org.kde.konsole.Window"),
+        "currentSession",
+        &(),
+    )
+    .await?
+    .body()
+    .deserialize()
 }
 
 async fn set_current_session(
