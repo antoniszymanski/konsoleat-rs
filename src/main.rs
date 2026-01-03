@@ -57,9 +57,11 @@ enum Error {
 async fn main() -> Result<(), Error> {
     let mut cli = Cli::parse();
     cli.workdir = fs::canonicalize(cli.workdir).await.context(CanonicalizeWorkdirCtx)?;
+
     let conn = Connection::session().await.context(ConnectToSessionBusCtx)?;
-    let services = list_services(&conn).await.context(ListServicesCtx)?;
     let mut first_window = None;
+
+    let services = list_services(&conn).await.context(ListServicesCtx)?;
     for service_name in services {
         let windows = list_windows(&conn, &service_name).await.context(ListWindowsCtx)?;
         for window_id in windows {
@@ -95,6 +97,7 @@ async fn main() -> Result<(), Error> {
             }
         }
     }
+
     let pid = match first_window {
         Some((service_name, window_id)) => {
             let session_id = new_session(&conn, &service_name, &window_id, &cli.workdir)
