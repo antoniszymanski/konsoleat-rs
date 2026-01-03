@@ -299,7 +299,7 @@ async fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWin
     struct Template {
         pid: u32,
     }
-    let mut file = NamedTempFile::with_prefix("konsole-at-").context(CreateTempfileCtx)?;
+    let mut file = NamedTempFile::with_prefix("konsoleat-").context(CreateTempfileCtx)?;
     Template { pid }.write_into(&mut file).context(RenderTemplateCtx)?;
     let scripting_proxy = ScriptingProxy::new(conn).await.context(CreateScriptingProxyCtx)?;
     let plugin_name = file.path();
