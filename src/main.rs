@@ -254,8 +254,9 @@ async fn set_current_session(
         "setCurrentSession",
         &(session_id),
     )
-    .await
-    .map(|_| ())
+    .await?
+    .body()
+    .deserialize()
 }
 
 async fn get_service_pid(conn: &Connection, service_name: &str) -> zbus::Result<u32> {
