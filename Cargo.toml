@@ -2,6 +2,8 @@
 name = "konsoleat"
 version = "1.0.0"
 edition = "2024"
+description = "A tool that activates or creates a Konsole terminal session in a specified working directory"
+license = "MPL-2.0"
 
 [dependencies]
 askama = "0.15.1"
