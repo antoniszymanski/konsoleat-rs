@@ -76,8 +76,7 @@ async fn main() -> Result<(), Error> {
                 .context(GetSessionCwdCtx)?;
             if cli.workdir == cwd {
                 let pid = get_service_pid(&conn, &service_name).await.context(GetServicePidCtx)?;
-                activate_windows(&conn, pid).await.context(ActivateWindowsCtx)?;
-                return Ok(());
+                return activate_windows(&conn, pid).await.context(ActivateWindowsCtx);
             }
             let sessions = list_sessions(&conn, &service_name, &window_id)
                 .await
@@ -91,8 +90,7 @@ async fn main() -> Result<(), Error> {
                         .await
                         .context(SetCurrentSessionCtx)?;
                     let pid = get_service_pid(&conn, &service_name).await.context(GetServicePidCtx)?;
-                    activate_windows(&conn, pid).await.context(ActivateWindowsCtx)?;
-                    return Ok(());
+                    return activate_windows(&conn, pid).await.context(ActivateWindowsCtx);
                 }
             }
         }
