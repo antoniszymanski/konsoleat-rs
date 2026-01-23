@@ -246,8 +246,8 @@ async fn set_current_session(
 enum GetSessionCwdError {
     #[snafu(display("Failed to get process ID of the session"))]
     GetSessionPid { source: zbus::Error },
-    #[snafu(display("Failed to read current working directory for process ID {pid}"))]
-    ReadProcessCwd { source: io::Error, pid: i32 },
+    #[snafu(display("Failed to get current working directory for process ID {pid}"))]
+    GetProcessCwd { source: io::Error, pid: i32 },
 }
 
 async fn get_session_cwd(
@@ -270,7 +270,7 @@ async fn get_session_cwd(
         .context(GetSessionPidCtx)?;
     fs::read_link(format!("/proc/{pid}/cwd"))
         .await
-        .context(ReadProcessCwdCtx { pid })
+        .context(GetProcessCwdCtx { pid })
 }
 
 async fn get_service_pid(conn: &Connection, service_name: &str) -> zbus::Result<u32> {
