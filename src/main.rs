@@ -13,7 +13,7 @@ use std::{
 };
 use tempfile::NamedTempFile;
 use tokio::fs;
-use zbus::{Connection, proxy};
+use zbus::Connection;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -295,12 +295,8 @@ enum ActivateWindowsError {
     CreateTempfile { source: io::Error },
     #[snafu(display("Failed to render the template to the tempfile"))]
     RenderTemplate { source: io::Error },
-    #[snafu(display("Failed to create a ScriptingProxy"))]
-    CreateScriptingProxy { source: zbus::Error },
     #[snafu(display("Failed to load a KWin script"))]
     LoadScript { source: zbus::Error },
-    #[snafu(display("Failed to create a ScriptProxy"))]
-    CreateScriptProxy { source: zbus::Error },
     #[snafu(display("Failed to run the script"))]
     RunScript { source: zbus::Error },
     #[snafu(display("Failed to stop the script"))]
@@ -315,41 +311,47 @@ async fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWin
     }
     let mut file = NamedTempFile::with_prefix("konsoleat-").context(CreateTempfileCtx)?;
     Template { pid }.write_into(&mut file).context(RenderTemplateCtx)?;
-    let scripting_proxy = ScriptingProxy::new(conn).await.context(CreateScriptingProxyCtx)?;
-    let plugin_name = file.path();
-    let script_id = scripting_proxy
-        .load_script(file.path(), plugin_name)
-        .await
-        .context(LoadScriptCtx)?;
-    let script_proxy = ScriptProxy::new(conn, format!("/Scripting/Script{script_id}"))
-        .await
-        .context(CreateScriptProxyCtx)?;
-    script_proxy.run().await.context(RunScriptCtx)?;
-    script_proxy.stop().await.context(StopScriptCtx)?;
-    Ok(())
+    let script_id = load_script(conn, file.path()).await.context(LoadScriptCtx)?;
+    let object_path = format!("/Scripting/Script{script_id}");
+    run_script(conn, &object_path).await.context(RunScriptCtx)?;
+    stop_script(conn, &object_path).await.context(StopScriptCtx)
 }
 
-#[proxy(
-    interface = "org.kde.kwin.Scripting",
-    default_service = "org.kde.KWin",
-    default_path = "/Scripting"
-)]
-trait Scripting {
-    #[zbus(name = "loadScript")]
-    fn load_script(&self, file_path: &Path, plugin_name: &Path) -> zbus::Result<i32>;
-
-    #[zbus(name = "unloadScript")]
-    fn unload_script(&self, plugin_name: &Path) -> zbus::Result<bool>;
-
-    #[zbus(name = "isScriptLoaded")]
-    fn is_script_loaded(&self, plugin_name: &Path) -> zbus::Result<bool>;
+async fn load_script(conn: &Connection, path: &Path) -> zbus::Result<i32> {
+    conn.call_method(
+        Some("org.kde.KWin"),
+        "/Scripting",
+        Some("org.kde.kwin.Scripting"),
+        "loadScript",
+        &(path),
+    )
+    .await?
+    .body()
+    .deserialize()
 }
 
-#[proxy(interface = "org.kde.kwin.Script", default_service = "org.kde.KWin")]
-trait Script {
-    #[zbus(name = "run")]
-    fn run(&self) -> zbus::Result<()>;
+async fn run_script(conn: &Connection, object_path: &str) -> zbus::Result<()> {
+    conn.call_method(
+        Some("org.kde.KWin"),
+        object_path,
+        Some("org.kde.kwin.Script"),
+        "run",
+        &(),
+    )
+    .await?
+    .body()
+    .deserialize()
+}
 
-    #[zbus(name = "stop")]
-    fn stop(&self) -> zbus::Result<()>;
+async fn stop_script(conn: &Connection, object_path: &str) -> zbus::Result<()> {
+    conn.call_method(
+        Some("org.kde.KWin"),
+        object_path,
+        Some("org.kde.kwin.Script"),
+        "stop",
+        &(),
+    )
+    .await?
+    .body()
+    .deserialize()
 }
