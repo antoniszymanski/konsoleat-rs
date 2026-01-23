@@ -3,7 +3,6 @@
 
 use askama::Template;
 use clap::Parser;
-use procfs::process::Process;
 use snafu::{ResultExt, Snafu};
 use std::{
     io,
@@ -248,7 +247,7 @@ enum GetSessionCwdError {
     #[snafu(display("Failed to get process ID of the session"))]
     GetSessionPid { source: zbus::Error },
     #[snafu(display("Failed to read current working directory for process ID {pid}"))]
-    ReadProcessCwd { source: procfs::ProcError, pid: i32 },
+    ReadProcessCwd { source: io::Error, pid: i32 },
 }
 
 async fn get_session_cwd(
@@ -256,7 +255,7 @@ async fn get_session_cwd(
     service_name: &str,
     session_id: i32,
 ) -> Result<PathBuf, GetSessionCwdError> {
-    let pid = conn
+    let pid: i32 = conn
         .call_method(
             Some(service_name),
             format!("/Sessions/{session_id}"),
@@ -269,9 +268,8 @@ async fn get_session_cwd(
         .body()
         .deserialize()
         .context(GetSessionPidCtx)?;
-    Process::new(pid)
-        .context(ReadProcessCwdCtx { pid })?
-        .cwd()
+    fs::read_link(format!("/proc/{pid}/cwd"))
+        .await
         .context(ReadProcessCwdCtx { pid })
 }
 

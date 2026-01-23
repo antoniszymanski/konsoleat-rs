@@ -9,7 +9,6 @@ license = "MPL-2.0"
 [dependencies]
 askama = "0.15.1"
 clap = { version = "4.5.53", features = ["derive", "string"] }
-procfs = "0.18.0"
 serde = { version = "1.0.228", features = ["derive"] }
 snafu = "0.8.9"
 tempfile = "3.24.0"
