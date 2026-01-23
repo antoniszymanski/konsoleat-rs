@@ -198,37 +198,17 @@ async fn list_sessions(conn: &Connection, service_name: &str, window_id: &str) -
     .collect()
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(context(suffix(Ctx)))]
-enum GetSessionCwdError {
-    #[snafu(display("Failed to get process ID of the session"))]
-    GetSessionPid { source: zbus::Error },
-    #[snafu(display("Failed to read current working directory for process ID {pid}"))]
-    ReadProcessCwd { source: procfs::ProcError, pid: i32 },
-}
-
-async fn get_session_cwd(
-    conn: &Connection,
-    service_name: &str,
-    session_id: i32,
-) -> Result<PathBuf, GetSessionCwdError> {
-    let pid = conn
-        .call_method(
-            Some(service_name),
-            format!("/Sessions/{session_id}"),
-            Some("org.kde.konsole.Session"),
-            "processId",
-            &(),
-        )
-        .await
-        .context(GetSessionPidCtx)?
-        .body()
-        .deserialize()
-        .context(GetSessionPidCtx)?;
-    Process::new(pid)
-        .context(ReadProcessCwdCtx { pid })?
-        .cwd()
-        .context(ReadProcessCwdCtx { pid })
+async fn new_session(conn: &Connection, service_name: &str, window_id: &str, directory: &Path) -> zbus::Result<i32> {
+    conn.call_method(
+        Some(service_name),
+        format!("/Windows/{window_id}"),
+        Some("org.kde.konsole.Window"),
+        "newSession",
+        &("" /* default profile */, directory),
+    )
+    .await?
+    .body()
+    .deserialize()
 }
 
 async fn get_current_session(conn: &Connection, service_name: &str, window_id: &str) -> zbus::Result<i32> {
@@ -260,6 +240,39 @@ async fn set_current_session(
     .await?
     .body()
     .deserialize()
+}
+
+#[derive(Debug, Snafu)]
+#[snafu(context(suffix(Ctx)))]
+enum GetSessionCwdError {
+    #[snafu(display("Failed to get process ID of the session"))]
+    GetSessionPid { source: zbus::Error },
+    #[snafu(display("Failed to read current working directory for process ID {pid}"))]
+    ReadProcessCwd { source: procfs::ProcError, pid: i32 },
+}
+
+async fn get_session_cwd(
+    conn: &Connection,
+    service_name: &str,
+    session_id: i32,
+) -> Result<PathBuf, GetSessionCwdError> {
+    let pid = conn
+        .call_method(
+            Some(service_name),
+            format!("/Sessions/{session_id}"),
+            Some("org.kde.konsole.Session"),
+            "processId",
+            &(),
+        )
+        .await
+        .context(GetSessionPidCtx)?
+        .body()
+        .deserialize()
+        .context(GetSessionPidCtx)?;
+    Process::new(pid)
+        .context(ReadProcessCwdCtx { pid })?
+        .cwd()
+        .context(ReadProcessCwdCtx { pid })
 }
 
 async fn get_service_pid(conn: &Connection, service_name: &str) -> zbus::Result<u32> {
@@ -339,17 +352,4 @@ trait Script {
 
     #[zbus(name = "stop")]
     fn stop(&self) -> zbus::Result<()>;
-}
-
-async fn new_session(conn: &Connection, service_name: &str, window_id: &str, directory: &Path) -> zbus::Result<i32> {
-    conn.call_method(
-        Some(service_name),
-        format!("/Windows/{window_id}"),
-        Some("org.kde.konsole.Window"),
-        "newSession",
-        &("" /* default profile */, directory),
-    )
-    .await?
-    .body()
-    .deserialize()
 }
