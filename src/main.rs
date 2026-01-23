@@ -15,9 +15,12 @@ use tempfile::NamedTempFile;
 use tokio::fs;
 use zbus::{Connection, proxy};
 
-/// Activate or create a Konsole terminal session in a specified working directory
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(
+    version,
+    about = "Activate or create a Konsole terminal session in a specified working directory",
+    long_about = None
+)]
 struct Cli {
     #[arg(default_value = ".")]
     workdir: PathBuf,
