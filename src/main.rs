@@ -30,9 +30,9 @@ struct Cli {
 enum Error {
     #[snafu(display("Failed to canonicalize workdir"))]
     CanonicalizeWorkdir { source: io::Error },
-    #[snafu(display("Failed to create a DBus connection to the session message bus"))]
+    #[snafu(display("Failed to create a D-Bus connection to the session message bus"))]
     ConnectToSessionBus { source: zbus::Error },
-    #[snafu(display("Failed to list DBus services"))]
+    #[snafu(display("Failed to list D-Bus services"))]
     ListServices { source: zbus::Error },
     #[snafu(display("Failed to list windows of the service"))]
     ListWindows { source: ListWindowsError },
@@ -173,7 +173,7 @@ async fn list_windows(conn: &Connection, service_name: &str) -> Result<Vec<Box<s
 #[derive(Debug, Snafu)]
 #[snafu(context(suffix(Ctx)))]
 enum ListSessionsError {
-    #[snafu(display("Failed to call DBus method \"sessionList\""))]
+    #[snafu(display("Failed to call D-Bus method \"sessionList\""))]
     CallSessionList { source: zbus::Error },
     #[snafu(display("Failed to parse session ID {input:?} as i32"))]
     ParseSessionId { source: ParseIntError, input: String },
