@@ -292,8 +292,6 @@ enum ActivateWindowsError {
     RunScript { source: zbus::Error },
     #[snafu(display("Failed to stop the script"))]
     StopScript { source: zbus::Error },
-    #[snafu(display("Failed to unload a KWin script"))]
-    UnloadScript { source: zbus::Error },
 }
 
 async fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWindowsError> {
@@ -315,10 +313,6 @@ async fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWin
         .context(CreateScriptProxyCtx)?;
     script_proxy.run().await.context(RunScriptCtx)?;
     script_proxy.stop().await.context(StopScriptCtx)?;
-    scripting_proxy
-        .unload_script(plugin_name)
-        .await
-        .context(UnloadScriptCtx)?;
     Ok(())
 }
 
