@@ -11,7 +11,7 @@ use std::{
     process::{Command, Stdio},
 };
 use tempfile::NamedTempFile;
-use tokio::fs;
+use tokio::{fs, task::spawn_blocking};
 use zbus::Connection;
 
 #[derive(Parser, Debug)]
@@ -302,14 +302,19 @@ enum ActivateWindowsError {
 }
 
 async fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWindowsError> {
-    #[derive(Template)]
-    #[template(path = "activate_windows.js.jinja", escape = "none")]
-    struct Template {
-        pid: u32,
-    }
-    let mut file = NamedTempFile::with_prefix(".konsoleat-").context(CreateTempfileCtx)?;
-    Template { pid }.write_into(&mut file).context(RenderTemplateCtx)?;
-    let script_id = load_script(conn, file.path()).await.context(LoadScriptCtx)?;
+    let temp_path = spawn_blocking(move || {
+        #[derive(Template)]
+        #[template(path = "activate_windows.js.jinja", escape = "none")]
+        struct Template {
+            pid: u32,
+        }
+        let mut file = NamedTempFile::with_prefix(".konsoleat-").context(CreateTempfileCtx)?;
+        Template { pid }.write_into(&mut file).context(RenderTemplateCtx)?;
+        Ok(file.into_temp_path())
+    })
+    .await
+    .expect("failed to execute blocking task")?;
+    let script_id = load_script(conn, &temp_path).await.context(LoadScriptCtx)?;
     let object_path = format!("/Scripting/Script{script_id}");
     run_script(conn, &object_path).await.context(RunScriptCtx)?;
     stop_script(conn, &object_path).await.context(StopScriptCtx)
