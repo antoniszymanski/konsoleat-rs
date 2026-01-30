@@ -307,7 +307,7 @@ async fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWin
     struct Template {
         pid: u32,
     }
-    let mut file = NamedTempFile::with_prefix("konsoleat-").context(CreateTempfileCtx)?;
+    let mut file = NamedTempFile::with_prefix(".konsoleat-").context(CreateTempfileCtx)?;
     Template { pid }.write_into(&mut file).context(RenderTemplateCtx)?;
     let script_id = load_script(conn, file.path()).await.context(LoadScriptCtx)?;
     let object_path = format!("/Scripting/Script{script_id}");
