@@ -3,6 +3,6 @@
 
 for (const window of workspace.windowList()) {
   if (window.pid === {{ pid }}) {
-    workspace.activeWindow = window
+    workspace.raiseWindow(window)
   }
 }
