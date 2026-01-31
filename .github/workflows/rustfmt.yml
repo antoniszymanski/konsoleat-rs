@@ -3,11 +3,11 @@ name: rustfmt
 on:
   pull_request:
     branches: ["*"]
-    paths: ["**/*.rs", "rustfmt.toml"]
+    paths: ["**/*.rs", ".?rustfmt.toml"]
   push:
     branches: ["*"]
     tags-ignore: ["v*"]
-    paths: ["**/*.rs", "rustfmt.toml"]
+    paths: ["**/*.rs", ".?rustfmt.toml"]
   workflow_dispatch:
 
 jobs:
