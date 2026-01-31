@@ -3,11 +3,11 @@ name: clippy
 on:
   pull_request:
     branches: ["*"]
-    paths: ["**/*.rs"]
+    paths: ["**/*.rs", "**/Cargo.toml", "**/Cargo.lock"]
   push:
     branches: ["*"]
     tags-ignore: ["v*"]
-    paths: ["**/*.rs"]
+    paths: ["**/*.rs", "**/Cargo.toml", "**/Cargo.lock"]
   workflow_dispatch:
 
 jobs:
