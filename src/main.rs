@@ -60,39 +60,39 @@ async fn main() -> Result<(), Error> {
     let mut cli = Cli::parse();
     cli.workdir = fs::canonicalize(cli.workdir).await.context(CanonicalizeWorkdirCtx)?;
 
-    let conn = Connection::session().await.context(ConnectToSessionBusCtx)?;
+    let conn = &Connection::session().await.context(ConnectToSessionBusCtx)?;
     let mut first_window = None;
 
-    let services = list_services(&conn).await.context(ListServicesCtx)?;
+    let services = list_services(conn).await.context(ListServicesCtx)?;
     for service_name in services {
-        let windows = list_windows(&conn, &service_name).await.context(ListWindowsCtx)?;
+        let windows = list_windows(conn, &service_name).await.context(ListWindowsCtx)?;
         for window_id in windows {
             if first_window.is_none() {
                 first_window = Some((service_name.clone(), window_id.clone()))
             }
-            let current_session = get_current_session(&conn, &service_name, &window_id)
+            let current_session = get_current_session(conn, &service_name, &window_id)
                 .await
                 .context(GetCurrentSessionCtx)?;
-            let cwd = get_session_cwd(&conn, &service_name, current_session)
+            let cwd = get_session_cwd(conn, &service_name, current_session)
                 .await
                 .context(GetSessionCwdCtx)?;
             if cli.workdir == cwd {
-                let pid = get_service_pid(&conn, &service_name).await.context(GetServicePidCtx)?;
-                return activate_windows(&conn, pid).await.context(ActivateWindowsCtx);
+                let pid = get_service_pid(conn, &service_name).await.context(GetServicePidCtx)?;
+                return activate_windows(conn, pid).await.context(ActivateWindowsCtx);
             }
-            let sessions = list_sessions(&conn, &service_name, &window_id)
+            let sessions = list_sessions(conn, &service_name, &window_id)
                 .await
                 .context(ListSessionsCtx)?;
             for session_id in sessions {
-                let cwd = get_session_cwd(&conn, &service_name, session_id)
+                let cwd = get_session_cwd(conn, &service_name, session_id)
                     .await
                     .context(GetSessionCwdCtx)?;
                 if cli.workdir == cwd {
-                    set_current_session(&conn, &service_name, &window_id, session_id)
+                    set_current_session(conn, &service_name, &window_id, session_id)
                         .await
                         .context(SetCurrentSessionCtx)?;
-                    let pid = get_service_pid(&conn, &service_name).await.context(GetServicePidCtx)?;
-                    return activate_windows(&conn, pid).await.context(ActivateWindowsCtx);
+                    let pid = get_service_pid(conn, &service_name).await.context(GetServicePidCtx)?;
+                    return activate_windows(conn, pid).await.context(ActivateWindowsCtx);
                 }
             }
         }
@@ -100,13 +100,13 @@ async fn main() -> Result<(), Error> {
 
     let pid = match first_window {
         Some((service_name, window_id)) => {
-            let session_id = new_session(&conn, &service_name, &window_id, &cli.workdir)
+            let session_id = new_session(conn, &service_name, &window_id, &cli.workdir)
                 .await
                 .context(CreateSessionCtx)?;
-            set_current_session(&conn, &service_name, &window_id, session_id)
+            set_current_session(conn, &service_name, &window_id, session_id)
                 .await
                 .context(SetCurrentSessionCtx)?;
-            get_service_pid(&conn, &service_name).await.context(GetServicePidCtx)?
+            get_service_pid(conn, &service_name).await.context(GetServicePidCtx)?
         }
         None => Command::new("konsole")
             .arg("--workdir")
@@ -118,7 +118,7 @@ async fn main() -> Result<(), Error> {
             .context(LaunchKonsoleCtx)?
             .id(),
     };
-    activate_windows(&conn, pid).await.context(ActivateWindowsCtx)
+    activate_windows(conn, pid).await.context(ActivateWindowsCtx)
 }
 
 async fn list_services(conn: &Connection) -> zbus::Result<Vec<Box<str>>> {
