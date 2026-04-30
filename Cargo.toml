@@ -7,7 +7,7 @@ repository = "https://github.com/antoniszymanski/konsoleat-rs"
 license = "MPL-2.0"
 
 [dependencies]
-askama = "0.15.1"
+askama = "0.16.0"
 clap = { version = "4.5.53", features = ["derive"] }
 serde = { version = "1.0.228", features = ["derive"] }
 snafu = "0.9.0"
