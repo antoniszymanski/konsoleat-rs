@@ -7,6 +7,7 @@
 		":semanticCommitScopeDisabled",
 		"group:allNonMajor",
 	],
+	groupSingleUpdates: false,
 	postUpdateOptions: [
 		// https://docs.renovatebot.com/golang/#module-tidying
 		"gomodTidy",
