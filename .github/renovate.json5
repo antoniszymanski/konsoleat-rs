@@ -1,6 +1,12 @@
 {
 	$schema: "https://docs.renovatebot.com/renovate-schema.json",
-	extends: ["config:recommended", ":semanticCommitsDisabled", "group:allNonMajor"],
+	extends: [
+		"config:recommended",
+		":semanticCommits",
+		":semanticCommitTypeAll(chore)",
+		":semanticCommitScopeDisabled",
+		"group:allNonMajor",
+	],
 	groupSingleUpdates: false,
 	postUpdateOptions: [
 		// https://docs.renovatebot.com/golang/#module-tidying
