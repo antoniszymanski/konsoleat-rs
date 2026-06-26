@@ -434,7 +434,7 @@ dependencies = [
 
 [[package]]
 name = "konsoleat"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "askama",
  "clap",
