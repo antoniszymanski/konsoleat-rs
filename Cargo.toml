@@ -1,6 +1,6 @@
 [package]
 name = "konsoleat"
-version = "1.0.11"
+version = "1.0.12"
 edition = "2024"
 description = "A tool that activates or creates a Konsole terminal session in a specified working directory"
 repository = "https://github.com/antoniszymanski/konsoleat-rs"
