@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.12](https://github.com/antoniszymanski/konsoleat-rs/compare/v1.0.11...v1.0.12) - 2026-07-07
+
+### Other
+
+- *(release-plz)* use Personal Access Token for GitHub auth
+
 ## [1.0.11](https://github.com/antoniszymanski/konsoleat-rs/compare/v1.0.10...v1.0.11) - 2026-07-07
 
 ### Other
