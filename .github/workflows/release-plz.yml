@@ -20,9 +20,9 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - &install-rust
-        name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - &setup-rust
+        name: Set up Rust
+        uses: moonrepo/setup-rust@v1
       - name: Run release-plz
         uses: release-plz/action@v0.5
         with:
@@ -43,7 +43,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - *checkout
-      - *install-rust
+      - *setup-rust
       - name: Run release-plz
         uses: release-plz/action@v0.5
         with:
