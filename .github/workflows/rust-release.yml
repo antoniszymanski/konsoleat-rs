@@ -32,3 +32,4 @@ jobs:
           bin: konsoleat
           target: ${{ matrix.target }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: refs/tags/v1.0.10
