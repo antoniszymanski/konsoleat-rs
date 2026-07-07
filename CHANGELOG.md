@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.11](https://github.com/antoniszymanski/konsoleat-rs/compare/v1.0.10...v1.0.11) - 2026-07-07
+
+### Other
+
+- update all non-major dependencies
+- *(release)* trigger workflow on tag push instead of release creation
+
 ## [1.0.10](https://github.com/antoniszymanski/konsoleat-rs/compare/v1.0.9...v1.0.10) - 2026-07-07
 
 ### Other
