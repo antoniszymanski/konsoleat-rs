@@ -6,7 +6,7 @@ on:
     paths: ["**/Cargo.toml", "**/Cargo.lock"]
   push:
     branches: [main]
-    tags-ignore: ["v*"]
+    tags-ignore: [v*]
     paths: ["**/Cargo.toml", "**/Cargo.lock"]
   schedule:
     - cron: "0 18 * * Fri"
