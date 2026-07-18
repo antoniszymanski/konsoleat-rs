@@ -5,7 +5,7 @@ on:
     branches: ["*"]
     paths: ["**/*.rs", ".?rustfmt.toml"]
   push:
-    branches: ["*"]
+    branches: [main]
     tags-ignore: ["v*"]
     paths: ["**/*.rs", ".?rustfmt.toml"]
   workflow_dispatch:

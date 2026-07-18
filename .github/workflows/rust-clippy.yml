@@ -5,7 +5,7 @@ on:
     branches: ["*"]
     paths: ["**/*.rs", "**/Cargo.toml", "**/Cargo.lock"]
   push:
-    branches: ["*"]
+    branches: [main]
     tags-ignore: ["v*"]
     paths: ["**/*.rs", "**/Cargo.toml", "**/Cargo.lock"]
   workflow_dispatch:
