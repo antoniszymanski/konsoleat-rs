@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.13](https://github.com/antoniszymanski/konsoleat-rs/compare/v1.0.12...v1.0.13) - 2026-07-18
+
+### Other
+
+- unquote tags-ignore patterns
+- restrict push triggers to main branch
+- normalize workflow name casing
+- *(renovate)* enable lock file maintenance
+- update all non-major dependencies
+- update rust crate tokio to v1.53.0
+- update rust crate clap to v4.6.2
+- Revert "ci(release): trigger workflow on tag push instead of release creation"
+
 ## [1.0.12](https://github.com/antoniszymanski/konsoleat-rs/compare/v1.0.11...v1.0.12) - 2026-07-07
 
 ### Other
