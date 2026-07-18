@@ -12,4 +12,5 @@
 		// https://docs.renovatebot.com/golang/#module-tidying
 		"gomodTidy",
 	],
+	lockFileMaintenance: { enabled: true },
 }
