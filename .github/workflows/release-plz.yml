@@ -2,8 +2,7 @@ name: release-plz
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   # Release unpublished packages.

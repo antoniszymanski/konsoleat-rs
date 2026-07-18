@@ -5,7 +5,7 @@ on:
     branches: ["*"]
     paths: ["**/*.rs", "typos.toml"]
   push:
-    branches: ["*"]
+    branches: [main]
     tags-ignore: ["v*"]
     paths: ["**/*.rs", "typos.toml"]
   workflow_dispatch:

@@ -5,7 +5,7 @@ on:
     branches: ["*"]
     paths: ["**/Cargo.toml", "**/Cargo.lock"]
   push:
-    branches: ["*"]
+    branches: [main]
     tags-ignore: ["v*"]
     paths: ["**/Cargo.toml", "**/Cargo.lock"]
   schedule:
