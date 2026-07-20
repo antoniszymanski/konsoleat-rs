@@ -3,7 +3,7 @@
 	extends: [
 		"config:recommended",
 		":semanticCommits",
-		":semanticCommitTypeAll(chore)",
+		":semanticCommitTypeAll(deps)",
 		":semanticCommitScopeDisabled",
 		"group:allNonMajor",
 	],
