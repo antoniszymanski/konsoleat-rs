@@ -17,7 +17,7 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.output }}
+      ref: refs/tags/v${{ steps.version.outputs.output }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -74,6 +74,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.create-release.outputs.ref }}
 
       - name: Install cross
         uses: taiki-e/install-action@v2
@@ -85,5 +87,5 @@ jobs:
         with:
           bin: konsoleat
           target: ${{ matrix.target }}
-          ref: refs/tags/v${{ needs.create-release.outputs.version }}
+          ref: ${{ needs.create-release.outputs.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
