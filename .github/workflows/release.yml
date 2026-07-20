@@ -1,0 +1,82 @@
+name: release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.output }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Batch changes
+        uses: miniscruff/changie-action@v3
+        with:
+          version: latest
+          args: batch auto
+
+      - name: Merge changes
+        run: changie merge
+
+      - name: Get the latest version
+        id: version
+        uses: miniscruff/changie-action@v3
+        with:
+          version: latest
+          args: latest --remove-prefix
+
+      - name: Install cargo-edit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-edit
+
+      - name: Set the version in Cargo.toml
+        run: cargo set-version ${{ steps.version.outputs.output }}
+
+      - name: Publish
+        run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Commit and push
+        uses: EndBug/add-and-commit@v10
+        with:
+          message: Release v${{ steps.version.outputs.output }}
+          default_author: user_info
+
+      - uses: taiki-e/create-gh-release-action@v1
+        with:
+          changelog: CHANGELOG.md
+          ref: refs/tags/v${{ steps.version.outputs.output }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  upload-assets:
+    needs: create-release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Compile and release
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: konsoleat
+          target: ${{ matrix.target }}
+          ref: refs/tags/v${{ needs.create-release.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
