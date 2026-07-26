@@ -68,24 +68,28 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - x86_64-unknown-linux-musl
+        include:
+          - target: x86_64-unknown-linux-gnu
+            build-tool: cargo
+          - target: x86_64-unknown-linux-musl
+            build-tool: cross
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.create-release.outputs.ref }}
 
-      - name: Install cross
+      - if: ${{ matrix.build-tool != 'cargo' }}
+        name: Install ${{ matrix.build-tool }}
         uses: taiki-e/install-action@v2
         with:
-          tool: cross
+          tool: ${{ matrix.build-tool }}
 
       - name: Compile and release
         uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: konsoleat
           target: ${{ matrix.target }}
+          build-tool: ${{ matrix.build-tool }}
           ref: ${{ needs.create-release.outputs.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
