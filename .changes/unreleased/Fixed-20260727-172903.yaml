@@ -1,0 +1,3 @@
+kind: Fixed
+body: Use more reliable way to determine workdir equality
+time: 2026-07-27T17:29:03.772098543+02:00

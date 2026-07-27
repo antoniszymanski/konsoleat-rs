@@ -3,6 +3,7 @@
 
 use askama::Template;
 use clap::Parser;
+use same_file::Handle;
 use snafu::{ResultExt, Snafu};
 use std::{
     io,
@@ -28,8 +29,8 @@ struct Cli {
 #[derive(Debug, Snafu)]
 #[snafu(context(suffix(Ctx)))]
 enum Error {
-    #[snafu(display("Failed to canonicalize workdir"))]
-    CanonicalizeWorkdir { source: io::Error },
+    #[snafu(display("Failed to construct a handle from the workdir"))]
+    ConstructHandleFromWorkdir { source: io::Error },
     #[snafu(display("Failed to create a D-Bus connection to the session message bus"))]
     ConnectToSessionBus { source: zbus::Error },
     #[snafu(display("Failed to list D-Bus services"))]
@@ -42,6 +43,8 @@ enum Error {
     ListSessions { source: ListSessionsError },
     #[snafu(display("Failed to get current working directory of the session"))]
     GetSessionCwd { source: GetSessionCwdError },
+    #[snafu(display("Failed to construct a handle from a path {path:?}"))]
+    ConstructHandleFromPath { source: io::Error, path: PathBuf },
     #[snafu(display("Failed to set current session"))]
     SetCurrentSession { source: zbus::Error },
     #[snafu(display("Failed to get process ID of the service"))]
@@ -57,8 +60,8 @@ enum Error {
 #[snafu::report]
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let mut cli = Cli::parse();
-    cli.workdir = fs::canonicalize(cli.workdir).await.context(CanonicalizeWorkdirCtx)?;
+    let cli = Cli::parse();
+    let workdir_handle = Handle::from_path(&cli.workdir).context(ConstructHandleFromWorkdirCtx)?;
 
     let conn = &Connection::session().await.context(ConnectToSessionBusCtx)?;
     let mut first_window = None;
@@ -76,7 +79,8 @@ async fn main() -> Result<(), Error> {
             let cwd = get_session_cwd(conn, &service_name, current_session)
                 .await
                 .context(GetSessionCwdCtx)?;
-            if cli.workdir == cwd {
+            let handle = Handle::from_path(&cwd).context(ConstructHandleFromPathCtx { path: cwd })?;
+            if handle == workdir_handle {
                 let pid = get_service_pid(conn, &service_name).await.context(GetServicePidCtx)?;
                 return activate_windows(conn, pid).await.context(ActivateWindowsCtx);
             }
@@ -87,7 +91,8 @@ async fn main() -> Result<(), Error> {
                 let cwd = get_session_cwd(conn, &service_name, session_id)
                     .await
                     .context(GetSessionCwdCtx)?;
-                if cli.workdir == cwd {
+                let handle = Handle::from_path(&cwd).context(ConstructHandleFromPathCtx { path: cwd })?;
+                if handle == workdir_handle {
                     set_current_session(conn, &service_name, &window_id, session_id)
                         .await
                         .context(SetCurrentSessionCtx)?;
