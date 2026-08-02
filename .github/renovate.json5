@@ -2,15 +2,13 @@
 	$schema: "https://docs.renovatebot.com/renovate-schema.json",
 	extends: [
 		"config:recommended",
+		"group:allNonMajor",
+		":maintainLockFilesWeekly",
 		":semanticCommits",
 		":semanticCommitTypeAll(deps)",
 		":semanticCommitScopeDisabled",
-		"group:allNonMajor",
 	],
-	groupSingleUpdates: false,
-	postUpdateOptions: [
-		// https://docs.renovatebot.com/golang/#module-tidying
-		"gomodTidy",
-	],
-	lockFileMaintenance: { enabled: true },
+	commitMessageLowerCase: "never",
+	timezone: "Europe/Warsaw",
+	postUpdateOptions: ["gomodTidy"],
 }
