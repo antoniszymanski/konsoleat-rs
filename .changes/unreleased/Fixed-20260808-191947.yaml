@@ -1,0 +1,3 @@
+kind: Fixed
+body: Canonicalize workdir path before creating handle to fail early on invalid paths
+time: 2026-08-08T19:19:47.881365246+02:00

@@ -29,6 +29,8 @@ struct Cli {
 #[derive(Debug, Snafu)]
 #[snafu(context(suffix(Ctx)))]
 enum Error {
+    #[snafu(display("Failed to canonicalize workdir"))]
+    CanonicalizeWorkdir { source: io::Error },
     #[snafu(display("Failed to construct a handle from the workdir"))]
     ConstructHandleFromWorkdir { source: io::Error },
     #[snafu(display("Failed to create a D-Bus connection to the session message bus"))]
@@ -60,7 +62,8 @@ enum Error {
 #[snafu::report]
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
+    cli.workdir = fs::canonicalize(cli.workdir).await.context(CanonicalizeWorkdirCtx)?;
     let workdir_handle = Handle::from_path(&cli.workdir).context(ConstructHandleFromWorkdirCtx)?;
 
     let conn = &Connection::session().await.context(ConnectToSessionBusCtx)?;
