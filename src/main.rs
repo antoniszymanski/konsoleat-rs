@@ -3,6 +3,7 @@
 
 use askama::Template;
 use clap::Parser;
+use procfs::{ProcError, process::Process};
 use same_file::Handle;
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -42,8 +43,8 @@ enum Error {
     GetCurrentSession { source: zbus::Error },
     #[snafu(display("Failed to list sessions of the window"))]
     ListSessions { source: ListSessionsError },
-    #[snafu(display("Failed to get current working directory of the session"))]
-    GetSessionCwd { source: GetSessionCwdError },
+    #[snafu(display("Failed to get process info of the session"))]
+    GetSessionProcInfo { source: GetSessionProcInfoError },
     #[snafu(display("Failed to construct a handle from a path {path:?}"))]
     ConstructHandleFromPath { source: io::Error, path: PathBuf },
     #[snafu(display("Failed to set current session"))]
@@ -62,43 +63,69 @@ enum Error {
 fn main() -> Result<(), Error> {
     let mut cli = Cli::parse();
     cli.workdir = fs::canonicalize(cli.workdir).context(CanonicalizeWorkdirCtx)?;
-    let workdir_handle = Handle::from_path(&cli.workdir).context(ConstructHandleFromWorkdirCtx)?;
 
+    let workdir_handle = Handle::from_path(&cli.workdir).context(ConstructHandleFromWorkdirCtx)?;
     let conn = &Connection::session().context(ConnectToSessionBusCtx)?;
-    let mut first_window = None;
+
+    let mut oldest_window = None;
+    let mut best_session = None;
 
     let services = list_services(conn).context(ListServicesCtx)?;
     for service_name in services {
         let windows = list_windows(conn, &service_name).context(ListWindowsCtx)?;
         for window_id in windows {
-            if first_window.is_none() {
-                first_window = Some((service_name.clone(), window_id.clone()))
-            }
             let current_session = get_current_session(conn, &service_name, &window_id).context(GetCurrentSessionCtx)?;
-            let cwd = get_session_cwd(conn, &service_name, current_session).context(GetSessionCwdCtx)?;
-            let handle = Handle::from_path(&cwd).context(ConstructHandleFromPathCtx { path: cwd })?;
-            if handle == workdir_handle {
-                let pid = get_service_pid(conn, &service_name).context(GetServicePidCtx)?;
-                return activate_windows(conn, pid).context(ActivateWindowsCtx);
-            }
             let sessions = list_sessions(conn, &service_name, &window_id).context(ListSessionsCtx)?;
             for session_id in sessions {
-                let cwd = get_session_cwd(conn, &service_name, session_id).context(GetSessionCwdCtx)?;
-                let handle = Handle::from_path(&cwd).context(ConstructHandleFromPathCtx { path: cwd })?;
-                if handle == workdir_handle {
-                    set_current_session(conn, &service_name, &window_id, session_id).context(SetCurrentSessionCtx)?;
-                    let pid = get_service_pid(conn, &service_name).context(GetServicePidCtx)?;
-                    return activate_windows(conn, pid).context(ActivateWindowsCtx);
+                let proc_info =
+                    get_session_proc_info(conn, &service_name, session_id).context(GetSessionProcInfoCtx)?;
+                consider_window_candidate(
+                    &mut oldest_window,
+                    AnnotatedWindow {
+                        service_name: service_name.clone(),
+                        window_id: window_id.clone(),
+                        starttime: proc_info.starttime,
+                    },
+                );
+                let handle = match Handle::from_path(&proc_info.cwd) {
+                    Ok(v) => Ok(v),
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
+                    Err(e) => Err(e),
                 }
+                .context(ConstructHandleFromPathCtx { path: proc_info.cwd })?;
+                if handle != workdir_handle {
+                    continue;
+                }
+                consider_session_candidate(
+                    &mut best_session,
+                    AnnotatedSession {
+                        service_name: service_name.clone(),
+                        window_id: window_id.clone(),
+                        session_id,
+                        is_current: session_id == current_session,
+                        starttime: proc_info.starttime,
+                    },
+                )
             }
         }
     }
 
-    let pid = match first_window {
-        Some((service_name, window_id)) => {
-            let session_id = new_session(conn, &service_name, &window_id, &cli.workdir).context(CreateSessionCtx)?;
-            set_current_session(conn, &service_name, &window_id, session_id).context(SetCurrentSessionCtx)?;
-            get_service_pid(conn, &service_name).context(GetServicePidCtx)?
+    if let Some(session) = best_session {
+        if !session.is_current {
+            set_current_session(conn, &session.service_name, &session.window_id, session.session_id)
+                .context(SetCurrentSessionCtx)?;
+        }
+        let pid = get_service_pid(conn, &session.service_name).context(GetServicePidCtx)?;
+        return activate_windows(conn, pid).context(ActivateWindowsCtx);
+    }
+
+    let pid = match oldest_window {
+        Some(window) => {
+            let session_id =
+                new_session(conn, &window.service_name, &window.window_id, &cli.workdir).context(CreateSessionCtx)?;
+            set_current_session(conn, &window.service_name, &window.window_id, session_id)
+                .context(SetCurrentSessionCtx)?;
+            get_service_pid(conn, &window.service_name).context(GetServicePidCtx)?
         }
         None => Command::new("konsole")
             .arg("--workdir")
@@ -111,6 +138,42 @@ fn main() -> Result<(), Error> {
             .id(),
     };
     activate_windows(conn, pid).context(ActivateWindowsCtx)
+}
+
+#[derive(Debug)]
+struct AnnotatedWindow {
+    service_name: Box<str>,
+    window_id: Box<str>,
+    starttime: u64,
+}
+
+fn consider_window_candidate(best: &mut Option<AnnotatedWindow>, candidate: AnnotatedWindow) {
+    let should_replace = best
+        .as_ref()
+        .map(|best| candidate.starttime < best.starttime)
+        .unwrap_or(true);
+    if should_replace {
+        *best = Some(candidate);
+    }
+}
+
+#[derive(Debug)]
+struct AnnotatedSession {
+    service_name: Box<str>,
+    window_id: Box<str>,
+    session_id: i32,
+    is_current: bool,
+    starttime: u64,
+}
+
+fn consider_session_candidate(best: &mut Option<AnnotatedSession>, candidate: AnnotatedSession) {
+    let should_replace = best
+        .as_ref()
+        .map(|best| (!candidate.is_current, candidate.starttime) < (!best.is_current, best.starttime))
+        .unwrap_or(true);
+    if should_replace {
+        *best = Some(candidate);
+    }
 }
 
 fn list_services(conn: &Connection) -> zbus::Result<Vec<Box<str>>> {
@@ -223,28 +286,47 @@ fn set_current_session(conn: &Connection, service_name: &str, window_id: &str, s
 }
 
 #[derive(Debug, Snafu)]
-#[snafu(context(suffix(Ctx)))]
-enum GetSessionCwdError {
+#[snafu(module, context(suffix(Ctx)))]
+enum GetSessionProcInfoError {
     #[snafu(display("Failed to get process ID of the session"))]
-    GetSessionPid { source: zbus::Error },
-    #[snafu(display("Failed to get current working directory for process ID {pid}"))]
-    GetProcessCwd { source: io::Error, pid: i32 },
+    Pid { source: zbus::Error },
+    #[snafu(display("Failed to construct a process handle"))]
+    Handle { source: ProcError, pid: i32 },
+    #[snafu(display("Failed to get the current working directory of the process"))]
+    Cwd { source: ProcError },
+    #[snafu(display("Failed to get stat info of the process"))]
+    Stat { source: ProcError },
 }
 
-fn get_session_cwd(conn: &Connection, service_name: &str, session_id: i32) -> Result<PathBuf, GetSessionCwdError> {
-    let pid: i32 = conn
-        .call_method(
-            Some(service_name),
-            format!("/Sessions/{session_id}"),
-            Some("org.kde.konsole.Session"),
-            "processId",
-            &(),
-        )
-        .context(GetSessionPidCtx)?
-        .body()
-        .deserialize()
-        .context(GetSessionPidCtx)?;
-    fs::read_link(format!("/proc/{pid}/cwd")).context(GetProcessCwdCtx { pid })
+struct SessionProcInfo {
+    cwd: PathBuf,
+    starttime: u64,
+}
+
+fn get_session_proc_info(
+    conn: &Connection,
+    service_name: &str,
+    session_id: i32,
+) -> Result<SessionProcInfo, GetSessionProcInfoError> {
+    use get_session_proc_info_error::*;
+    let pid = get_session_pid(conn, service_name, session_id).context(PidCtx)?;
+    let process = Process::new(pid).context(HandleCtx { pid })?;
+    Ok(SessionProcInfo {
+        cwd: process.cwd().context(CwdCtx)?,
+        starttime: process.stat().context(StatCtx)?.starttime,
+    })
+}
+
+fn get_session_pid(conn: &Connection, service_name: &str, session_id: i32) -> zbus::Result<i32> {
+    conn.call_method(
+        Some(service_name),
+        format!("/Sessions/{session_id}"),
+        Some("org.kde.konsole.Session"),
+        "processId",
+        &(),
+    )?
+    .body()
+    .deserialize()
 }
 
 fn get_service_pid(conn: &Connection, service_name: &str) -> zbus::Result<u32> {
