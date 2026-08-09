@@ -6,14 +6,13 @@ use clap::Parser;
 use same_file::Handle;
 use snafu::{ResultExt, Snafu};
 use std::{
-    io,
+    fs, io,
     num::ParseIntError,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
 use tempfile::NamedTempFile;
-use tokio::{fs, task::spawn_blocking};
-use zbus::Connection;
+use zbus::blocking::Connection;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -60,47 +59,36 @@ enum Error {
 }
 
 #[snafu::report]
-#[tokio::main]
-async fn main() -> Result<(), Error> {
+fn main() -> Result<(), Error> {
     let mut cli = Cli::parse();
-    cli.workdir = fs::canonicalize(cli.workdir).await.context(CanonicalizeWorkdirCtx)?;
+    cli.workdir = fs::canonicalize(cli.workdir).context(CanonicalizeWorkdirCtx)?;
     let workdir_handle = Handle::from_path(&cli.workdir).context(ConstructHandleFromWorkdirCtx)?;
 
-    let conn = &Connection::session().await.context(ConnectToSessionBusCtx)?;
+    let conn = &Connection::session().context(ConnectToSessionBusCtx)?;
     let mut first_window = None;
 
-    let services = list_services(conn).await.context(ListServicesCtx)?;
+    let services = list_services(conn).context(ListServicesCtx)?;
     for service_name in services {
-        let windows = list_windows(conn, &service_name).await.context(ListWindowsCtx)?;
+        let windows = list_windows(conn, &service_name).context(ListWindowsCtx)?;
         for window_id in windows {
             if first_window.is_none() {
                 first_window = Some((service_name.clone(), window_id.clone()))
             }
-            let current_session = get_current_session(conn, &service_name, &window_id)
-                .await
-                .context(GetCurrentSessionCtx)?;
-            let cwd = get_session_cwd(conn, &service_name, current_session)
-                .await
-                .context(GetSessionCwdCtx)?;
+            let current_session = get_current_session(conn, &service_name, &window_id).context(GetCurrentSessionCtx)?;
+            let cwd = get_session_cwd(conn, &service_name, current_session).context(GetSessionCwdCtx)?;
             let handle = Handle::from_path(&cwd).context(ConstructHandleFromPathCtx { path: cwd })?;
             if handle == workdir_handle {
-                let pid = get_service_pid(conn, &service_name).await.context(GetServicePidCtx)?;
-                return activate_windows(conn, pid).await.context(ActivateWindowsCtx);
+                let pid = get_service_pid(conn, &service_name).context(GetServicePidCtx)?;
+                return activate_windows(conn, pid).context(ActivateWindowsCtx);
             }
-            let sessions = list_sessions(conn, &service_name, &window_id)
-                .await
-                .context(ListSessionsCtx)?;
+            let sessions = list_sessions(conn, &service_name, &window_id).context(ListSessionsCtx)?;
             for session_id in sessions {
-                let cwd = get_session_cwd(conn, &service_name, session_id)
-                    .await
-                    .context(GetSessionCwdCtx)?;
+                let cwd = get_session_cwd(conn, &service_name, session_id).context(GetSessionCwdCtx)?;
                 let handle = Handle::from_path(&cwd).context(ConstructHandleFromPathCtx { path: cwd })?;
                 if handle == workdir_handle {
-                    set_current_session(conn, &service_name, &window_id, session_id)
-                        .await
-                        .context(SetCurrentSessionCtx)?;
-                    let pid = get_service_pid(conn, &service_name).await.context(GetServicePidCtx)?;
-                    return activate_windows(conn, pid).await.context(ActivateWindowsCtx);
+                    set_current_session(conn, &service_name, &window_id, session_id).context(SetCurrentSessionCtx)?;
+                    let pid = get_service_pid(conn, &service_name).context(GetServicePidCtx)?;
+                    return activate_windows(conn, pid).context(ActivateWindowsCtx);
                 }
             }
         }
@@ -108,13 +96,9 @@ async fn main() -> Result<(), Error> {
 
     let pid = match first_window {
         Some((service_name, window_id)) => {
-            let session_id = new_session(conn, &service_name, &window_id, &cli.workdir)
-                .await
-                .context(CreateSessionCtx)?;
-            set_current_session(conn, &service_name, &window_id, session_id)
-                .await
-                .context(SetCurrentSessionCtx)?;
-            get_service_pid(conn, &service_name).await.context(GetServicePidCtx)?
+            let session_id = new_session(conn, &service_name, &window_id, &cli.workdir).context(CreateSessionCtx)?;
+            set_current_session(conn, &service_name, &window_id, session_id).context(SetCurrentSessionCtx)?;
+            get_service_pid(conn, &service_name).context(GetServicePidCtx)?
         }
         None => Command::new("konsole")
             .arg("--workdir")
@@ -126,10 +110,10 @@ async fn main() -> Result<(), Error> {
             .context(LaunchKonsoleCtx)?
             .id(),
     };
-    activate_windows(conn, pid).await.context(ActivateWindowsCtx)
+    activate_windows(conn, pid).context(ActivateWindowsCtx)
 }
 
-async fn list_services(conn: &Connection) -> zbus::Result<Vec<Box<str>>> {
+fn list_services(conn: &Connection) -> zbus::Result<Vec<Box<str>>> {
     Ok(conn
         .call_method(
             Some("org.freedesktop.DBus"),
@@ -137,8 +121,7 @@ async fn list_services(conn: &Connection) -> zbus::Result<Vec<Box<str>>> {
             Some("org.freedesktop.DBus"),
             "ListNames",
             &(),
-        )
-        .await?
+        )?
         .body()
         .deserialize::<Vec<&str>>()?
         .into_iter()
@@ -156,7 +139,7 @@ enum ListWindowsError {
     ParseIntrospection { source: zbus_xml::Error },
 }
 
-async fn list_windows(conn: &Connection, service_name: &str) -> Result<Vec<Box<str>>, ListWindowsError> {
+fn list_windows(conn: &Connection, service_name: &str) -> Result<Vec<Box<str>>, ListWindowsError> {
     let body = conn
         .call_method(
             Some(service_name),
@@ -165,7 +148,6 @@ async fn list_windows(conn: &Connection, service_name: &str) -> Result<Vec<Box<s
             "Introspect",
             &(),
         )
-        .await
         .context(GetIntrospectionCtx)?
         .body();
     let bytes = body.deserialize::<&str>().context(GetIntrospectionCtx)?.as_bytes();
@@ -187,7 +169,7 @@ enum ListSessionsError {
     ParseSessionId { source: ParseIntError, input: String },
 }
 
-async fn list_sessions(conn: &Connection, service_name: &str, window_id: &str) -> Result<Vec<i32>, ListSessionsError> {
+fn list_sessions(conn: &Connection, service_name: &str, window_id: &str) -> Result<Vec<i32>, ListSessionsError> {
     conn.call_method(
         Some(service_name),
         format!("/Windows/{window_id}"),
@@ -195,7 +177,6 @@ async fn list_sessions(conn: &Connection, service_name: &str, window_id: &str) -
         "sessionList",
         &(),
     )
-    .await
     .context(CallSessionListCtx)?
     .body()
     .deserialize::<Vec<&str>>()
@@ -205,46 +186,38 @@ async fn list_sessions(conn: &Connection, service_name: &str, window_id: &str) -
     .collect()
 }
 
-async fn new_session(conn: &Connection, service_name: &str, window_id: &str, directory: &Path) -> zbus::Result<i32> {
+fn new_session(conn: &Connection, service_name: &str, window_id: &str, directory: &Path) -> zbus::Result<i32> {
     conn.call_method(
         Some(service_name),
         format!("/Windows/{window_id}"),
         Some("org.kde.konsole.Window"),
         "newSession",
         &("" /* default profile */, directory),
-    )
-    .await?
+    )?
     .body()
     .deserialize()
 }
 
-async fn get_current_session(conn: &Connection, service_name: &str, window_id: &str) -> zbus::Result<i32> {
+fn get_current_session(conn: &Connection, service_name: &str, window_id: &str) -> zbus::Result<i32> {
     conn.call_method(
         Some(service_name),
         format!("/Windows/{window_id}"),
         Some("org.kde.konsole.Window"),
         "currentSession",
         &(),
-    )
-    .await?
+    )?
     .body()
     .deserialize()
 }
 
-async fn set_current_session(
-    conn: &Connection,
-    service_name: &str,
-    window_id: &str,
-    session_id: i32,
-) -> zbus::Result<()> {
+fn set_current_session(conn: &Connection, service_name: &str, window_id: &str, session_id: i32) -> zbus::Result<()> {
     conn.call_method(
         Some(service_name),
         format!("/Windows/{window_id}"),
         Some("org.kde.konsole.Window"),
         "setCurrentSession",
         &(session_id),
-    )
-    .await?
+    )?
     .body()
     .deserialize()
 }
@@ -258,11 +231,7 @@ enum GetSessionCwdError {
     GetProcessCwd { source: io::Error, pid: i32 },
 }
 
-async fn get_session_cwd(
-    conn: &Connection,
-    service_name: &str,
-    session_id: i32,
-) -> Result<PathBuf, GetSessionCwdError> {
+fn get_session_cwd(conn: &Connection, service_name: &str, session_id: i32) -> Result<PathBuf, GetSessionCwdError> {
     let pid: i32 = conn
         .call_method(
             Some(service_name),
@@ -271,25 +240,21 @@ async fn get_session_cwd(
             "processId",
             &(),
         )
-        .await
         .context(GetSessionPidCtx)?
         .body()
         .deserialize()
         .context(GetSessionPidCtx)?;
-    fs::read_link(format!("/proc/{pid}/cwd"))
-        .await
-        .context(GetProcessCwdCtx { pid })
+    fs::read_link(format!("/proc/{pid}/cwd")).context(GetProcessCwdCtx { pid })
 }
 
-async fn get_service_pid(conn: &Connection, service_name: &str) -> zbus::Result<u32> {
+fn get_service_pid(conn: &Connection, service_name: &str) -> zbus::Result<u32> {
     conn.call_method(
         Some("org.freedesktop.DBus"),
         "/",
         Some("org.freedesktop.DBus"),
         "GetConnectionUnixProcessID",
         &(service_name),
-    )
-    .await?
+    )?
     .body()
     .deserialize()
 }
@@ -309,8 +274,8 @@ enum ActivateWindowsError {
     StopScript { source: zbus::Error },
 }
 
-async fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWindowsError> {
-    let temp_path = spawn_blocking(move || {
+fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWindowsError> {
+    let temp_path = {
         #[derive(Template)]
         #[template(path = "activate_windows.js.jinja", escape = "none")]
         struct Template {
@@ -318,51 +283,46 @@ async fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWin
         }
         let mut file = NamedTempFile::with_prefix(".konsoleat-").context(CreateTempfileCtx)?;
         Template { pid }.write_into(&mut file).context(RenderTemplateCtx)?;
-        Ok(file.into_temp_path())
-    })
-    .await
-    .expect("failed to execute blocking task")?;
-    let script_id = load_script(conn, &temp_path).await.context(LoadScriptCtx)?;
+        file.into_temp_path()
+    };
+    let script_id = load_script(conn, &temp_path).context(LoadScriptCtx)?;
     let object_path = format!("/Scripting/Script{script_id}");
-    run_script(conn, &object_path).await.context(RunScriptCtx)?;
-    stop_script(conn, &object_path).await.context(StopScriptCtx)
+    run_script(conn, &object_path).context(RunScriptCtx)?;
+    stop_script(conn, &object_path).context(StopScriptCtx)
 }
 
-async fn load_script(conn: &Connection, path: &Path) -> zbus::Result<i32> {
+fn load_script(conn: &Connection, path: &Path) -> zbus::Result<i32> {
     conn.call_method(
         Some("org.kde.KWin"),
         "/Scripting",
         Some("org.kde.kwin.Scripting"),
         "loadScript",
         &(path),
-    )
-    .await?
+    )?
     .body()
     .deserialize()
 }
 
-async fn run_script(conn: &Connection, object_path: &str) -> zbus::Result<()> {
+fn run_script(conn: &Connection, object_path: &str) -> zbus::Result<()> {
     conn.call_method(
         Some("org.kde.KWin"),
         object_path,
         Some("org.kde.kwin.Script"),
         "run",
         &(),
-    )
-    .await?
+    )?
     .body()
     .deserialize()
 }
 
-async fn stop_script(conn: &Connection, object_path: &str) -> zbus::Result<()> {
+fn stop_script(conn: &Connection, object_path: &str) -> zbus::Result<()> {
     conn.call_method(
         Some("org.kde.KWin"),
         object_path,
         Some("org.kde.kwin.Script"),
         "stop",
         &(),
-    )
-    .await?
+    )?
     .body()
     .deserialize()
 }
