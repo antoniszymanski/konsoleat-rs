@@ -1,19 +1,26 @@
 // SPDX-FileCopyrightText: 2025 Antoni Szymański
 // SPDX-License-Identifier: MPL-2.0
 
-use askama::Template;
+use crate::{
+    service::{ListWindowsError, list_services},
+    session::{GetSessionProcInfoError, Session},
+    window::{ListSessionsError, Window},
+};
+use activate_windows::{ActivateWindowsError, activate_windows};
 use clap::Parser;
-use procfs::{ProcError, process::Process};
 use same_file::Handle;
 use snafu::{ResultExt, Snafu};
 use std::{
     fs, io,
-    num::ParseIntError,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{Command, Stdio},
 };
-use tempfile::NamedTempFile;
 use zbus::blocking::Connection;
+
+mod activate_windows;
+mod service;
+mod session;
+mod window;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -70,23 +77,12 @@ fn main() -> Result<(), Error> {
     let mut oldest_window = None;
     let mut best_session = None;
 
-    let services = list_services(conn).context(ListServicesCtx)?;
-    for service_name in services {
-        let windows = list_windows(conn, &service_name).context(ListWindowsCtx)?;
-        for window_id in windows {
-            let current_session = get_current_session(conn, &service_name, &window_id).context(GetCurrentSessionCtx)?;
-            let sessions = list_sessions(conn, &service_name, &window_id).context(ListSessionsCtx)?;
-            for session_id in sessions {
-                let proc_info =
-                    get_session_proc_info(conn, &service_name, session_id).context(GetSessionProcInfoCtx)?;
-                consider_window_candidate(
-                    &mut oldest_window,
-                    AnnotatedWindow {
-                        service_name: service_name.clone(),
-                        window_id: window_id.clone(),
-                        starttime: proc_info.starttime,
-                    },
-                );
+    for service in list_services(conn).context(ListServicesCtx)? {
+        for window in service.windows().context(ListWindowsCtx)? {
+            let current_session = window.current_session().context(GetCurrentSessionCtx)?;
+            for session in window.sessions().context(ListSessionsCtx)? {
+                let proc_info = session.proc_info().context(GetSessionProcInfoCtx)?;
+                consider_window(&mut oldest_window, &window, proc_info.starttime);
                 let handle = match Handle::from_path(&proc_info.cwd) {
                     Ok(v) => Ok(v),
                     Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
@@ -96,36 +92,31 @@ fn main() -> Result<(), Error> {
                 if handle != workdir_handle {
                     continue;
                 }
-                consider_session_candidate(
-                    &mut best_session,
-                    AnnotatedSession {
-                        service_name: service_name.clone(),
-                        window_id: window_id.clone(),
-                        session_id,
-                        is_current: session_id == current_session,
-                        starttime: proc_info.starttime,
-                    },
-                )
+                let is_current = session.id == current_session.id;
+                consider_session(&mut best_session, &session, proc_info.starttime, is_current)
             }
         }
     }
 
-    if let Some(session) = best_session {
-        if !session.is_current {
-            set_current_session(conn, &session.service_name, &session.window_id, session.session_id)
-                .context(SetCurrentSessionCtx)?;
+    if let Some(best_session) = best_session {
+        if !best_session.is_current {
+            best_session
+                .session
+                .set_current_session()
+                .context(SetCurrentSessionCtx)?
         }
-        let pid = get_service_pid(conn, &session.service_name).context(GetServicePidCtx)?;
+        let pid = best_session.session.window.service.pid().context(GetServicePidCtx)?;
         return activate_windows(conn, pid).context(ActivateWindowsCtx);
     }
 
     let pid = match oldest_window {
-        Some(window) => {
-            let session_id =
-                new_session(conn, &window.service_name, &window.window_id, &cli.workdir).context(CreateSessionCtx)?;
-            set_current_session(conn, &window.service_name, &window.window_id, session_id)
-                .context(SetCurrentSessionCtx)?;
-            get_service_pid(conn, &window.service_name).context(GetServicePidCtx)?
+        Some(oldest_window) => {
+            let session = oldest_window
+                .window
+                .new_session(&cli.workdir)
+                .context(CreateSessionCtx)?;
+            session.set_current_session().context(SetCurrentSessionCtx)?;
+            session.window.service.pid().context(GetServicePidCtx)?
         }
         None => Command::new("konsole")
             .arg("--workdir")
@@ -142,269 +133,37 @@ fn main() -> Result<(), Error> {
 
 #[derive(Debug)]
 struct AnnotatedWindow {
-    service_name: Box<str>,
-    window_id: Box<str>,
+    window: Window,
     starttime: u64,
 }
 
-fn consider_window_candidate(best: &mut Option<AnnotatedWindow>, candidate: AnnotatedWindow) {
-    let should_replace = best
-        .as_ref()
-        .map(|best| candidate.starttime < best.starttime)
-        .unwrap_or(true);
+fn consider_window(best: &mut Option<AnnotatedWindow>, window: &Window, starttime: u64) {
+    let should_replace = best.as_ref().map(|best| starttime < best.starttime).unwrap_or(true);
     if should_replace {
-        *best = Some(candidate);
+        *best = Some(AnnotatedWindow {
+            window: window.clone(),
+            starttime,
+        });
     }
 }
 
 #[derive(Debug)]
 struct AnnotatedSession {
-    service_name: Box<str>,
-    window_id: Box<str>,
-    session_id: i32,
-    is_current: bool,
+    session: Session,
     starttime: u64,
+    is_current: bool,
 }
 
-fn consider_session_candidate(best: &mut Option<AnnotatedSession>, candidate: AnnotatedSession) {
+fn consider_session(best: &mut Option<AnnotatedSession>, session: &Session, starttime: u64, is_current: bool) {
     let should_replace = best
         .as_ref()
-        .map(|best| (!candidate.is_current, candidate.starttime) < (!best.is_current, best.starttime))
+        .map(|best| (!is_current, starttime) < (!best.is_current, best.starttime))
         .unwrap_or(true);
     if should_replace {
-        *best = Some(candidate);
+        *best = Some(AnnotatedSession {
+            session: session.clone(),
+            starttime,
+            is_current,
+        });
     }
-}
-
-fn list_services(conn: &Connection) -> zbus::Result<Vec<Box<str>>> {
-    Ok(conn
-        .call_method(
-            Some("org.freedesktop.DBus"),
-            "/org/freedesktop/DBus",
-            Some("org.freedesktop.DBus"),
-            "ListNames",
-            &(),
-        )?
-        .body()
-        .deserialize::<Vec<&str>>()?
-        .into_iter()
-        .filter(|s| s.starts_with("org.kde.konsole"))
-        .map(|s| s.into())
-        .collect())
-}
-
-#[derive(Debug, Snafu)]
-#[snafu(context(suffix(Ctx)))]
-enum ListWindowsError {
-    #[snafu(display("Failed to get introspection data"))]
-    GetIntrospection { source: zbus::Error },
-    #[snafu(display("Failed to parse XML introspection data"))]
-    ParseIntrospection { source: zbus_xml::Error },
-}
-
-fn list_windows(conn: &Connection, service_name: &str) -> Result<Vec<Box<str>>, ListWindowsError> {
-    let body = conn
-        .call_method(
-            Some(service_name),
-            "/Windows",
-            Some("org.freedesktop.DBus.Introspectable"),
-            "Introspect",
-            &(),
-        )
-        .context(GetIntrospectionCtx)?
-        .body();
-    let bytes = body.deserialize::<&str>().context(GetIntrospectionCtx)?.as_bytes();
-    Ok(zbus_xml::Node::from_reader(bytes)
-        .context(ParseIntrospectionCtx)?
-        .nodes()
-        .iter()
-        .filter_map(|node| node.name())
-        .map(|s| s.into())
-        .collect())
-}
-
-#[derive(Debug, Snafu)]
-#[snafu(context(suffix(Ctx)))]
-enum ListSessionsError {
-    #[snafu(display("Failed to call D-Bus method \"sessionList\""))]
-    CallSessionList { source: zbus::Error },
-    #[snafu(display("Failed to parse session ID {input:?} as i32"))]
-    ParseSessionId { source: ParseIntError, input: String },
-}
-
-fn list_sessions(conn: &Connection, service_name: &str, window_id: &str) -> Result<Vec<i32>, ListSessionsError> {
-    conn.call_method(
-        Some(service_name),
-        format!("/Windows/{window_id}"),
-        Some("org.kde.konsole.Window"),
-        "sessionList",
-        &(),
-    )
-    .context(CallSessionListCtx)?
-    .body()
-    .deserialize::<Vec<&str>>()
-    .context(CallSessionListCtx)?
-    .into_iter()
-    .map(|s| s.parse().context(ParseSessionIdCtx { input: s }))
-    .collect()
-}
-
-fn new_session(conn: &Connection, service_name: &str, window_id: &str, directory: &Path) -> zbus::Result<i32> {
-    conn.call_method(
-        Some(service_name),
-        format!("/Windows/{window_id}"),
-        Some("org.kde.konsole.Window"),
-        "newSession",
-        &("" /* default profile */, directory),
-    )?
-    .body()
-    .deserialize()
-}
-
-fn get_current_session(conn: &Connection, service_name: &str, window_id: &str) -> zbus::Result<i32> {
-    conn.call_method(
-        Some(service_name),
-        format!("/Windows/{window_id}"),
-        Some("org.kde.konsole.Window"),
-        "currentSession",
-        &(),
-    )?
-    .body()
-    .deserialize()
-}
-
-fn set_current_session(conn: &Connection, service_name: &str, window_id: &str, session_id: i32) -> zbus::Result<()> {
-    conn.call_method(
-        Some(service_name),
-        format!("/Windows/{window_id}"),
-        Some("org.kde.konsole.Window"),
-        "setCurrentSession",
-        &(session_id),
-    )?
-    .body()
-    .deserialize()
-}
-
-#[derive(Debug, Snafu)]
-#[snafu(module, context(suffix(Ctx)))]
-enum GetSessionProcInfoError {
-    #[snafu(display("Failed to get process ID of the session"))]
-    Pid { source: zbus::Error },
-    #[snafu(display("Failed to construct a process handle"))]
-    Handle { source: ProcError, pid: i32 },
-    #[snafu(display("Failed to get the current working directory of the process"))]
-    Cwd { source: ProcError },
-    #[snafu(display("Failed to get stat info of the process"))]
-    Stat { source: ProcError },
-}
-
-struct SessionProcInfo {
-    cwd: PathBuf,
-    starttime: u64,
-}
-
-fn get_session_proc_info(
-    conn: &Connection,
-    service_name: &str,
-    session_id: i32,
-) -> Result<SessionProcInfo, GetSessionProcInfoError> {
-    use get_session_proc_info_error::*;
-    let pid = get_session_pid(conn, service_name, session_id).context(PidCtx)?;
-    let process = Process::new(pid).context(HandleCtx { pid })?;
-    Ok(SessionProcInfo {
-        cwd: process.cwd().context(CwdCtx)?,
-        starttime: process.stat().context(StatCtx)?.starttime,
-    })
-}
-
-fn get_session_pid(conn: &Connection, service_name: &str, session_id: i32) -> zbus::Result<i32> {
-    conn.call_method(
-        Some(service_name),
-        format!("/Sessions/{session_id}"),
-        Some("org.kde.konsole.Session"),
-        "processId",
-        &(),
-    )?
-    .body()
-    .deserialize()
-}
-
-fn get_service_pid(conn: &Connection, service_name: &str) -> zbus::Result<u32> {
-    conn.call_method(
-        Some("org.freedesktop.DBus"),
-        "/",
-        Some("org.freedesktop.DBus"),
-        "GetConnectionUnixProcessID",
-        &(service_name),
-    )?
-    .body()
-    .deserialize()
-}
-
-#[derive(Debug, Snafu)]
-#[snafu(context(suffix(Ctx)))]
-enum ActivateWindowsError {
-    #[snafu(display("Failed to create a tempfile"))]
-    CreateTempfile { source: io::Error },
-    #[snafu(display("Failed to render the template to the tempfile"))]
-    RenderTemplate { source: io::Error },
-    #[snafu(display("Failed to load a KWin script"))]
-    LoadScript { source: zbus::Error },
-    #[snafu(display("Failed to run the script"))]
-    RunScript { source: zbus::Error },
-    #[snafu(display("Failed to stop the script"))]
-    StopScript { source: zbus::Error },
-}
-
-fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWindowsError> {
-    let temp_path = {
-        #[derive(Template)]
-        #[template(path = "activate_windows.js.jinja", escape = "none")]
-        struct Template {
-            pid: u32,
-        }
-        let mut file = NamedTempFile::with_prefix(".konsoleat-").context(CreateTempfileCtx)?;
-        Template { pid }.write_into(&mut file).context(RenderTemplateCtx)?;
-        file.into_temp_path()
-    };
-    let script_id = load_script(conn, &temp_path).context(LoadScriptCtx)?;
-    let object_path = format!("/Scripting/Script{script_id}");
-    run_script(conn, &object_path).context(RunScriptCtx)?;
-    stop_script(conn, &object_path).context(StopScriptCtx)
-}
-
-fn load_script(conn: &Connection, path: &Path) -> zbus::Result<i32> {
-    conn.call_method(
-        Some("org.kde.KWin"),
-        "/Scripting",
-        Some("org.kde.kwin.Scripting"),
-        "loadScript",
-        &(path),
-    )?
-    .body()
-    .deserialize()
-}
-
-fn run_script(conn: &Connection, object_path: &str) -> zbus::Result<()> {
-    conn.call_method(
-        Some("org.kde.KWin"),
-        object_path,
-        Some("org.kde.kwin.Script"),
-        "run",
-        &(),
-    )?
-    .body()
-    .deserialize()
-}
-
-fn stop_script(conn: &Connection, object_path: &str) -> zbus::Result<()> {
-    conn.call_method(
-        Some("org.kde.KWin"),
-        object_path,
-        Some("org.kde.kwin.Script"),
-        "stop",
-        &(),
-    )?
-    .body()
-    .deserialize()
 }
