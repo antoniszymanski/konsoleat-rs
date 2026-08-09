@@ -12,6 +12,7 @@ use same_file::Handle;
 use snafu::{ResultExt, Snafu};
 use std::{
     fs, io,
+    ops::Deref,
     path::PathBuf,
     process::{Command, Stdio},
 };
@@ -100,21 +101,15 @@ fn main() -> Result<(), Error> {
 
     if let Some(best_session) = best_session {
         if !best_session.is_current {
-            best_session
-                .session
-                .set_current_session()
-                .context(SetCurrentSessionCtx)?
+            best_session.set_current_session().context(SetCurrentSessionCtx)?
         }
-        let pid = best_session.session.window.service.pid().context(GetServicePidCtx)?;
+        let pid = best_session.window.service.pid().context(GetServicePidCtx)?;
         return activate_windows(conn, pid).context(ActivateWindowsCtx);
     }
 
     let pid = match oldest_window {
         Some(oldest_window) => {
-            let session = oldest_window
-                .window
-                .new_session(&cli.workdir)
-                .context(CreateSessionCtx)?;
+            let session = oldest_window.new_session(&cli.workdir).context(CreateSessionCtx)?;
             session.set_current_session().context(SetCurrentSessionCtx)?;
             session.window.service.pid().context(GetServicePidCtx)?
         }
@@ -137,6 +132,14 @@ struct AnnotatedWindow {
     starttime: u64,
 }
 
+impl Deref for AnnotatedWindow {
+    type Target = Window;
+
+    fn deref(&self) -> &Self::Target {
+        &self.window
+    }
+}
+
 fn consider_window(best: &mut Option<AnnotatedWindow>, window: &Window, starttime: u64) {
     let should_replace = best.as_ref().map(|best| starttime < best.starttime).unwrap_or(true);
     if should_replace {
@@ -152,6 +155,14 @@ struct AnnotatedSession {
     session: Session,
     starttime: u64,
     is_current: bool,
+}
+
+impl Deref for AnnotatedSession {
+    type Target = Session;
+
+    fn deref(&self) -> &Self::Target {
+        &self.session
+    }
 }
 
 fn consider_session(best: &mut Option<AnnotatedSession>, session: &Session, starttime: u64, is_current: bool) {
