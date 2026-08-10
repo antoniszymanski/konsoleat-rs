@@ -36,7 +36,9 @@ pub struct Service {
 
 impl fmt::Debug for Service {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Service").field("name", &self.name).finish()
+        f.debug_struct("Service")
+            .field("name", &self.name)
+            .finish_non_exhaustive()
     }
 }
 
