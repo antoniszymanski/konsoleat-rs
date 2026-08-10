@@ -3,12 +3,14 @@
 
 use crate::{service::Service, session::Session};
 use snafu::{ResultExt, Snafu};
-use std::{num::ParseIntError, path::Path, rc::Rc};
+use std::{num::ParseIntError, path::Path};
 
 #[derive(Debug, Clone)]
 pub struct Window {
     pub service: Service,
-    pub id: Rc<str>,
+    /// Konsole registers windows under `/Windows/<managerId>`; `managerId` is a C++ `int` and maps to Rust `i32`.
+    /// See: <https://github.com/KDE/konsole/blob/v26.07.90/src/ViewManager.cpp#L95>.
+    pub id: i32,
 }
 
 #[derive(Debug, Snafu)]

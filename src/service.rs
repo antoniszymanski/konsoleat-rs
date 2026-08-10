@@ -3,7 +3,7 @@
 
 use crate::window::Window;
 use snafu::{ResultExt, Snafu};
-use std::{fmt, rc::Rc};
+use std::{fmt, num::ParseIntError, rc::Rc};
 use zbus::blocking::Connection;
 
 pub fn list_services(conn: &Connection) -> zbus::Result<impl Iterator<Item = Service>> {
@@ -47,6 +47,8 @@ pub enum ListWindowsError {
     GetIntrospection { source: zbus::Error },
     #[snafu(display("Failed to parse XML introspection data"))]
     ParseIntrospection { source: zbus_xml::Error },
+    #[snafu(display("Failed to parse window ID {input:?} as i32"))]
+    ParseWindowId { source: ParseIntError, input: String },
 }
 
 impl Service {
@@ -68,8 +70,8 @@ impl Service {
             .nodes()
             .iter()
             .filter_map(|node| node.name())
-            .map(|s| s.into())
-            .collect::<Vec<Rc<_>>>()
+            .map(|s| s.parse().context(ParseWindowIdCtx { input: s }))
+            .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .map(|window_id| Window {
                 service: self.clone(),

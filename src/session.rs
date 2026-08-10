@@ -9,6 +9,8 @@ use std::path::PathBuf;
 #[derive(Debug, Clone)]
 pub struct Session {
     pub window: Window,
+    /// Konsole registers sessions under `/Sessions/<sessionId>`; `sessionId` is a C++ `int` and maps to Rust `i32`.
+    /// See: <https://github.com/KDE/konsole/blob/v26.07.90/src/session/Session.cpp#L123>.
     pub id: i32,
 }
 
