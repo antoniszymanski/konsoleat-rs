@@ -1,3 +1,0 @@
-kind: Changed
-body: Prefer current, then oldest session when workdir matches, and oldest window otherwise. Previously, this behavior was undefined and depended on the order in which services, windows, and sessions were returned.
-time: 2026-08-10T02:01:05.657310018+02:00
