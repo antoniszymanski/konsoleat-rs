@@ -1,0 +1,3 @@
+kind: Fixed
+body: Guard against pathologically aggressive temporary file cleaners by using anonymous tempfiles
+time: 2026-08-25T02:41:35.669595803+02:00

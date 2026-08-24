@@ -3,8 +3,13 @@
 
 use askama::Template;
 use snafu::{ResultExt, Snafu};
-use std::{io, path::Path};
-use tempfile::NamedTempFile;
+use std::{
+    io::{self},
+    os::fd::AsRawFd,
+    path::{Path, PathBuf},
+    process,
+};
+use tempfile::tempfile;
 use zbus::blocking::Connection;
 
 #[derive(Debug, Snafu)]
@@ -23,16 +28,17 @@ pub enum ActivateWindowsError {
 }
 
 pub fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWindowsError> {
-    let temp_path = {
+    let file = {
         #[derive(Template)]
         #[template(path = "activate_windows.js.jinja", escape = "none")]
         struct Template {
             pid: u32,
         }
-        let mut file = NamedTempFile::with_prefix(".konsoleat-").context(CreateTempfileCtx)?;
+        let mut file = tempfile().context(CreateTempfileCtx)?;
         Template { pid }.write_into(&mut file).context(RenderTemplateCtx)?;
-        file.into_temp_path()
+        file
     };
+    let temp_path: PathBuf = format!("/proc/{}/fd/{}", process::id(), file.as_raw_fd()).into();
     let script_id = load_script(conn, &temp_path).context(LoadScriptCtx)?;
     let object_path = format!("/Scripting/Script{script_id}");
     run_script(conn, &object_path).context(RunScriptCtx)?;
