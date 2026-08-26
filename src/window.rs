@@ -76,7 +76,9 @@ impl Window {
                 format!("/Windows/{}", self.id),
                 Some("org.kde.konsole.Window"),
                 "newSession",
-                &("" /* default profile */, directory),
+                // Konsole uses the default profile when given an empty string.
+                // See: <https://github.com/KDE/konsole/blob/v26.07.90/src/ViewManager.cpp#L1523>.
+                &("", directory),
             )?
             .body()
             .deserialize()?;
