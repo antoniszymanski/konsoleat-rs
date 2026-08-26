@@ -46,16 +46,18 @@ jobs:
       - name: Set the version in Cargo.toml
         run: cargo set-version ${{ steps.version.outputs.output }}
 
-      - name: Commit and push
-        uses: EndBug/add-and-commit@v11
-        with:
-          message: Release v${{ steps.version.outputs.output }}
-          default_author: user_info
+      - name: Commit
+        run: |
+          git add .
+          git commit -m "Release v${{ steps.version.outputs.output }}"
 
       - name: Publish
         run: cargo publish --no-verify
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Push
+        run: git push
 
       - uses: taiki-e/create-gh-release-action@v1
         with:
