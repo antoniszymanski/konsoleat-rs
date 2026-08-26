@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use crate::{
+    cli::Cli,
     service::{ListWindowsError, list_services},
     session::{GetSessionProcInfoError, Session},
     window::{ListSessionsError, Window},
@@ -19,20 +20,10 @@ use std::{
 use zbus::blocking::Connection;
 
 mod activate_windows;
+mod cli;
 mod service;
 mod session;
 mod window;
-
-#[derive(Parser, Debug)]
-#[command(
-    version,
-    about = "Activate or create a Konsole terminal session in a specified working directory",
-    long_about = None
-)]
-struct Cli {
-    #[arg(default_value = ".")]
-    workdir: PathBuf,
-}
 
 #[derive(Debug, Snafu)]
 #[snafu(context(suffix(Ctx)))]

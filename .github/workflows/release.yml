@@ -93,3 +93,4 @@ jobs:
           build-tool: ${{ matrix.build-tool }}
           ref: ${{ needs.create-release.outputs.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          include: completions,man
