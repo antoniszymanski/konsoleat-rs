@@ -3,11 +3,15 @@
 	extends: [
 		"config:recommended",
 		"group:allNonMajor",
-		":maintainLockFilesWeekly",
 		":semanticCommits",
 		":semanticCommitTypeAll(deps)",
 		":semanticCommitScopeDisabled",
 	],
+	lockFileMaintenance: {
+		enabled: true,
+		recreateWhen: "never",
+		schedule: ["before 4am on monday"],
+	},
 	commitMessageLowerCase: "never",
 	timezone: "Europe/Warsaw",
 	postUpdateOptions: ["gomodTidy"],
