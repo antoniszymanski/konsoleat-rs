@@ -19,7 +19,7 @@ pub fn list_services(conn: &Connection) -> zbus::Result<impl Iterator<Item = Ser
         .deserialize::<Vec<&str>>()?
         .into_iter()
         .filter(|s| s.starts_with("org.kde.konsole"))
-        .map(|s| s.into())
+        .map(Into::into)
         .collect::<Vec<_>>()
         .into_iter()
         .map(|service_name| Service {

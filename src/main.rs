@@ -97,14 +97,14 @@ fn main() -> Result<(), Error> {
                     continue;
                 }
                 let is_current = session.id == current_session.id;
-                consider_session(&mut best_session, &session, proc_info.starttime, is_current)
+                consider_session(&mut best_session, &session, proc_info.starttime, is_current);
             }
         }
     }
 
     if let Some(best_session) = best_session {
         if !best_session.is_current {
-            best_session.set_current_session().context(SetCurrentSessionCtx)?
+            best_session.set_current_session().context(SetCurrentSessionCtx)?;
         }
         let pid = best_session.window.service.pid().context(GetServicePidCtx)?;
         return activate_windows(conn, pid).context(ActivateWindowsCtx);
@@ -144,7 +144,7 @@ impl Deref for AnnotatedWindow {
 }
 
 fn consider_window(best: &mut Option<AnnotatedWindow>, window: &Window, starttime: u64) {
-    let should_replace = best.as_ref().map(|best| starttime < best.starttime).unwrap_or(true);
+    let should_replace = best.as_ref().is_none_or(|best| starttime < best.starttime);
     if should_replace {
         *best = Some(AnnotatedWindow {
             window: window.clone(),
@@ -171,8 +171,7 @@ impl Deref for AnnotatedSession {
 fn consider_session(best: &mut Option<AnnotatedSession>, session: &Session, starttime: u64, is_current: bool) {
     let should_replace = best
         .as_ref()
-        .map(|best| (!is_current, starttime) < (!best.is_current, best.starttime))
-        .unwrap_or(true);
+        .is_none_or(|best| (!is_current, starttime) < (!best.is_current, best.starttime));
     if should_replace {
         *best = Some(AnnotatedSession {
             session: session.clone(),
