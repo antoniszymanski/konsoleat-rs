@@ -32,6 +32,10 @@ enum Error {
     CanonicalizeWorkdir { source: io::Error },
     #[snafu(display("Failed to construct a handle from the workdir"))]
     ConstructHandleFromWorkdir { source: io::Error },
+    #[snafu(display("Failed to read workdir metadata"))]
+    ReadWorkdirMetadata { source: io::Error },
+    #[snafu(display("Workdir is not a directory"))]
+    WorkdirNotADirectory,
     #[snafu(display("Failed to create a D-Bus connection to the session message bus"))]
     ConnectToSessionBus { source: zbus::Error },
     #[snafu(display("Failed to list D-Bus services"))]
@@ -64,8 +68,16 @@ fn main() -> Result<(), Error> {
     cli.workdir = fs::canonicalize(cli.workdir).context(CanonicalizeWorkdirCtx)?;
 
     let workdir_handle = Handle::from_path(&cli.workdir).context(ConstructHandleFromWorkdirCtx)?;
-    let conn = &Connection::session().context(ConnectToSessionBusCtx)?;
+    if !workdir_handle
+        .as_file()
+        .metadata()
+        .context(ReadWorkdirMetadataCtx)?
+        .is_dir()
+    {
+        return Err(Error::WorkdirNotADirectory);
+    }
 
+    let conn = &Connection::session().context(ConnectToSessionBusCtx)?;
     let mut oldest_window = None;
     let mut best_session = None;
 
