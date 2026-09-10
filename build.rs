@@ -4,10 +4,7 @@
 use crate::cli::Cli;
 use carapace_spec_clap::Spec as Carapace;
 use clap::CommandFactory;
-use clap_complete::{
-    aot::{Bash, Elvish, Fish, PowerShell, Zsh},
-    generate_to,
-};
+use clap_complete::aot::{Bash, Elvish, Fish, PowerShell, Zsh};
 use clap_complete_nushell::Nushell;
 use remove_dir_all::ensure_empty_dir;
 use std::{io, path::PathBuf};
@@ -23,7 +20,7 @@ fn main() -> Result<(), io::Error> {
             let out_dir = manifest_dir.join("completions");
             ensure_empty_dir(&out_dir)?;
             $(
-                generate_to($generator, &mut Cli::command(), env!("CARGO_PKG_NAME"), &out_dir)?;
+                clap_complete::generate_to($generator, &mut Cli::command(), env!("CARGO_PKG_NAME"), &out_dir)?;
             )*
         };
     }
