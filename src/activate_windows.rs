@@ -4,7 +4,7 @@
 use askama::Template;
 use snafu::{ResultExt, Snafu};
 use std::{
-    io::{self},
+    io,
     os::fd::AsRawFd,
     path::{Path, PathBuf},
     process,
