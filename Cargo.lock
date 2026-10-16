@@ -641,7 +641,7 @@ dependencies = [
  "same-file",
  "snafu",
  "tempfile",
- "zbus",
+ "zbus 5.19.0",
  "zbus_xml",
 ]
 
@@ -1314,9 +1314,23 @@ dependencies = [
  "uuid",
  "windows-sys 0.61.2",
  "winnow",
- "zbus_macros",
+ "zbus_macros 5.19.0",
  "zbus_names",
  "zvariant",
+]
+
+[[package]]
+name = "zbus"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "266223222c9d81e5966455a9da0783e35d56a7ccab79a03c2366b2d98f8fc8a9"
+dependencies = [
+ "endi",
+ "serde",
+ "winnow",
+ "zbus_macros 6.0.0",
+ "zbus_utils",
+ "zcheapstr",
 ]
 
 [[package]]
@@ -1335,6 +1349,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "zbus_macros"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69191782481ef4e0ac88ca487347c52e08bb85cceb2a163b79f7281fe5be0a3c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.6",
+ "zbus_utils",
+]
+
+[[package]]
 name = "zbus_names"
 version = "4.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1346,15 +1372,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "zbus_xml"
-version = "5.2.1"
+name = "zbus_utils"
+version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1586c021a01ca0a9216dcd874e546382e156a5cbab5fab6cb5f10087e22682a"
+checksum = "c27a055b114bd9fc3686e90f62bd1fe612d523fc5f620bac3b1d2f42d3f6cab8"
 dependencies = [
+ "proc-macro2",
+ "quote",
  "serde",
+ "syn 3.0.6",
  "winnow",
- "zbus_names",
- "zvariant",
+]
+
+[[package]]
+name = "zbus_xml"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d21954afb379fe9389d5aaa8a91f9e1a19b58f72061a78199162ea39e63c801a"
+dependencies = [
+ "winnow",
+ "zbus 6.0.0",
 ]
 
 [[package]]
