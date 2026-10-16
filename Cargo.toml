@@ -13,7 +13,7 @@ procfs = { version = "0.18.0", default-features = false }
 same-file = "1.0.6"
 snafu = "0.9.0"
 tempfile = "3.24.0"
-zbus = "5.12.0"
+zbus = "6.0.0"
 zbus_xml = "6.0.0"
 
 [build-dependencies]
