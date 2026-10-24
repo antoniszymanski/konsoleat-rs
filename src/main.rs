@@ -17,7 +17,7 @@ use std::{
     path::PathBuf,
     process::{Command, Stdio},
 };
-use zbus::blocking::Connection;
+use zbus::Connection;
 
 mod activate_windows;
 mod cli;
@@ -64,6 +64,10 @@ enum Error {
 
 #[snafu::report]
 fn main() -> Result<(), Error> {
+    zbus::block_on(async_main())
+}
+
+async fn async_main() -> Result<(), Error> {
     let mut cli = Cli::parse();
     cli.workdir = fs::canonicalize(cli.workdir).context(CanonicalizeWorkdirCtx)?;
 
@@ -77,15 +81,15 @@ fn main() -> Result<(), Error> {
         return Err(Error::WorkdirNotADirectory);
     }
 
-    let conn = &Connection::session().context(ConnectToSessionBusCtx)?;
+    let conn = &Connection::session().await.context(ConnectToSessionBusCtx)?;
     let mut oldest_window = None;
     let mut best_session = None;
 
-    for service in list_services(conn).context(ListServicesCtx)? {
-        for window in service.windows().context(ListWindowsCtx)? {
-            let current_session = window.current_session().context(GetCurrentSessionCtx)?;
-            for session in window.sessions().context(ListSessionsCtx)? {
-                let proc_info = session.proc_info().context(GetSessionProcInfoCtx)?;
+    for service in list_services(conn).await.context(ListServicesCtx)? {
+        for window in service.windows().await.context(ListWindowsCtx)? {
+            let current_session = window.current_session().await.context(GetCurrentSessionCtx)?;
+            for session in window.sessions().await.context(ListSessionsCtx)? {
+                let proc_info = session.proc_info().await.context(GetSessionProcInfoCtx)?;
                 consider_window(&mut oldest_window, &window, proc_info.starttime);
                 let handle = match Handle::from_path(&proc_info.cwd) {
                     Ok(v) => Ok(v),
@@ -104,17 +108,20 @@ fn main() -> Result<(), Error> {
 
     if let Some(best_session) = best_session {
         if !best_session.is_current {
-            best_session.set_current_session().context(SetCurrentSessionCtx)?;
+            best_session.set_current_session().await.context(SetCurrentSessionCtx)?;
         }
-        let pid = best_session.window.service.pid().context(GetServicePidCtx)?;
-        return activate_windows(conn, pid).context(ActivateWindowsCtx);
+        let pid = best_session.window.service.pid().await.context(GetServicePidCtx)?;
+        return activate_windows(conn, pid).await.context(ActivateWindowsCtx);
     }
 
     let pid = match oldest_window {
         Some(oldest_window) => {
-            let session = oldest_window.new_session(&cli.workdir).context(CreateSessionCtx)?;
-            session.set_current_session().context(SetCurrentSessionCtx)?;
-            session.window.service.pid().context(GetServicePidCtx)?
+            let session = oldest_window
+                .new_session(&cli.workdir)
+                .await
+                .context(CreateSessionCtx)?;
+            session.set_current_session().await.context(SetCurrentSessionCtx)?;
+            session.window.service.pid().await.context(GetServicePidCtx)?
         }
         None => Command::new("konsole")
             .arg("--workdir")
@@ -126,7 +133,7 @@ fn main() -> Result<(), Error> {
             .context(LaunchKonsoleCtx)?
             .id(),
     };
-    activate_windows(conn, pid).context(ActivateWindowsCtx)
+    activate_windows(conn, pid).await.context(ActivateWindowsCtx)
 }
 
 #[derive(Debug)]

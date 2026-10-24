@@ -15,7 +15,7 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn set_current_session(&self) -> zbus::Result<()> {
+    pub async fn set_current_session(&self) -> zbus::Result<()> {
         self.window
             .service
             .conn
@@ -25,12 +25,13 @@ impl Session {
                 Some("org.kde.konsole.Window"),
                 "setCurrentSession",
                 &(self.id),
-            )?
+            )
+            .await?
             .body()
             .deserialize()
     }
 
-    pub fn pid(&self) -> zbus::Result<i32> {
+    pub async fn pid(&self) -> zbus::Result<i32> {
         self.window
             .service
             .conn
@@ -40,14 +41,15 @@ impl Session {
                 Some("org.kde.konsole.Session"),
                 "processId",
                 &(),
-            )?
+            )
+            .await?
             .body()
             .deserialize()
     }
 
-    pub fn proc_info(&self) -> Result<SessionProcInfo, GetSessionProcInfoError> {
+    pub async fn proc_info(&self) -> Result<SessionProcInfo, GetSessionProcInfoError> {
         use get_session_proc_info_error::*;
-        let pid = self.pid().context(PidCtx)?;
+        let pid = self.pid().await.context(PidCtx)?;
         let process = Process::new(pid).context(HandleCtx { pid })?;
         Ok(SessionProcInfo {
             cwd: process.cwd().context(CwdCtx)?,

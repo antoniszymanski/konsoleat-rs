@@ -23,7 +23,7 @@ pub enum ListSessionsError {
 }
 
 impl Window {
-    pub fn sessions(&self) -> Result<impl Iterator<Item = Session>, ListSessionsError> {
+    pub async fn sessions(&self) -> Result<impl Iterator<Item = Session>, ListSessionsError> {
         Ok(self
             .service
             .conn
@@ -34,6 +34,7 @@ impl Window {
                 "sessionList",
                 &(),
             )
+            .await
             .context(CallSessionListCtx)?
             .body()
             .deserialize::<Vec<&str>>()
@@ -48,7 +49,7 @@ impl Window {
             }))
     }
 
-    pub fn current_session(&self) -> zbus::Result<Session> {
+    pub async fn current_session(&self) -> zbus::Result<Session> {
         let session_id = self
             .service
             .conn
@@ -58,7 +59,8 @@ impl Window {
                 Some("org.kde.konsole.Window"),
                 "currentSession",
                 &(),
-            )?
+            )
+            .await?
             .body()
             .deserialize()?;
         Ok(Session {
@@ -67,7 +69,7 @@ impl Window {
         })
     }
 
-    pub fn new_session(&self, directory: &Path) -> zbus::Result<Session> {
+    pub async fn new_session(&self, directory: &Path) -> zbus::Result<Session> {
         let session_id = self
             .service
             .conn
@@ -79,7 +81,8 @@ impl Window {
                 // Konsole uses the default profile when given an empty string.
                 // See: <https://github.com/KDE/konsole/blob/v26.07.90/src/ViewManager.cpp#L1523>.
                 &("", directory),
-            )?
+            )
+            .await?
             .body()
             .deserialize()?;
         Ok(Session {

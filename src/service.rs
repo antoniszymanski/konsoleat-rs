@@ -4,9 +4,9 @@
 use crate::window::Window;
 use snafu::{ResultExt, Snafu};
 use std::{fmt, num::ParseIntError, rc::Rc};
-use zbus::blocking::Connection;
+use zbus::Connection;
 
-pub fn list_services(conn: &Connection) -> zbus::Result<impl Iterator<Item = Service>> {
+pub async fn list_services(conn: &Connection) -> zbus::Result<impl Iterator<Item = Service>> {
     Ok(conn
         .call_method(
             Some("org.freedesktop.DBus"),
@@ -14,7 +14,8 @@ pub fn list_services(conn: &Connection) -> zbus::Result<impl Iterator<Item = Ser
             Some("org.freedesktop.DBus"),
             "ListNames",
             &(),
-        )?
+        )
+        .await?
         .body()
         .deserialize::<Vec<&str>>()?
         .into_iter()
@@ -54,7 +55,7 @@ pub enum ListWindowsError {
 }
 
 impl Service {
-    pub fn windows(&self) -> Result<impl Iterator<Item = Window>, ListWindowsError> {
+    pub async fn windows(&self) -> Result<impl Iterator<Item = Window>, ListWindowsError> {
         let body = self
             .conn
             .call_method(
@@ -64,6 +65,7 @@ impl Service {
                 "Introspect",
                 &(),
             )
+            .await
             .context(GetIntrospectionCtx)?
             .body();
         let bytes = body.deserialize::<&str>().context(GetIntrospectionCtx)?.as_bytes();
@@ -81,7 +83,7 @@ impl Service {
             }))
     }
 
-    pub fn pid(&self) -> zbus::Result<u32> {
+    pub async fn pid(&self) -> zbus::Result<u32> {
         self.conn
             .call_method(
                 Some("org.freedesktop.DBus"),
@@ -89,7 +91,8 @@ impl Service {
                 Some("org.freedesktop.DBus"),
                 "GetConnectionUnixProcessID",
                 &(self.name.as_ref()),
-            )?
+            )
+            .await?
             .body()
             .deserialize()
     }

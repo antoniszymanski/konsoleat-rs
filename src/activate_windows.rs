@@ -10,7 +10,7 @@ use std::{
     process,
 };
 use tempfile::tempfile;
-use zbus::blocking::Connection;
+use zbus::Connection;
 
 #[derive(Debug, Snafu)]
 #[snafu(context(suffix(Ctx)))]
@@ -27,7 +27,7 @@ pub enum ActivateWindowsError {
     StopScript { source: zbus::Error },
 }
 
-pub fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWindowsError> {
+pub async fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWindowsError> {
     let file = {
         #[derive(Template)]
         #[template(path = "activate_windows.js.jinja", escape = "none")]
@@ -39,44 +39,47 @@ pub fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWindo
         file
     };
     let temp_path: PathBuf = format!("/proc/{}/fd/{}", process::id(), file.as_raw_fd()).into();
-    let script_id = load_script(conn, &temp_path).context(LoadScriptCtx)?;
+    let script_id = load_script(conn, &temp_path).await.context(LoadScriptCtx)?;
     let object_path = format!("/Scripting/Script{script_id}");
-    run_script(conn, &object_path).context(RunScriptCtx)?;
-    stop_script(conn, &object_path).context(StopScriptCtx)
+    run_script(conn, &object_path).await.context(RunScriptCtx)?;
+    stop_script(conn, &object_path).await.context(StopScriptCtx)
 }
 
-fn load_script(conn: &Connection, path: &Path) -> zbus::Result<i32> {
+async fn load_script(conn: &Connection, path: &Path) -> zbus::Result<i32> {
     conn.call_method(
         Some("org.kde.KWin"),
         "/Scripting",
         Some("org.kde.kwin.Scripting"),
         "loadScript",
         &(path),
-    )?
+    )
+    .await?
     .body()
     .deserialize()
 }
 
-fn run_script(conn: &Connection, object_path: &str) -> zbus::Result<()> {
+async fn run_script(conn: &Connection, object_path: &str) -> zbus::Result<()> {
     conn.call_method(
         Some("org.kde.KWin"),
         object_path,
         Some("org.kde.kwin.Script"),
         "run",
         &(),
-    )?
+    )
+    .await?
     .body()
     .deserialize()
 }
 
-fn stop_script(conn: &Connection, object_path: &str) -> zbus::Result<()> {
+async fn stop_script(conn: &Connection, object_path: &str) -> zbus::Result<()> {
     conn.call_method(
         Some("org.kde.KWin"),
         object_path,
         Some("org.kde.kwin.Script"),
         "stop",
         &(),
-    )?
+    )
+    .await?
     .body()
     .deserialize()
 }
