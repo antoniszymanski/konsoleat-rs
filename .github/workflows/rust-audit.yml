@@ -19,10 +19,5 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install cargo-audit
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-audit
-
       - name: Run cargo-audit
         uses: actions-rust-lang/audit@v1
