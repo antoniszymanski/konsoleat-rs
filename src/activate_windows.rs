@@ -27,17 +27,17 @@ pub enum ActivateWindowsError {
     StopScript { source: zbus::Error },
 }
 
+#[derive(Template)]
+#[template(path = "activate_windows.js.jinja", escape = "none")]
+struct ActivateWindowsTemplate {
+    pid: u32,
+}
+
 pub async fn activate_windows(conn: &Connection, pid: u32) -> Result<(), ActivateWindowsError> {
-    let file = {
-        #[derive(Template)]
-        #[template(path = "activate_windows.js.jinja", escape = "none")]
-        struct Template {
-            pid: u32,
-        }
-        let mut file = tempfile().context(CreateTempfileCtx)?;
-        Template { pid }.write_into(&mut file).context(RenderTemplateCtx)?;
-        file
-    };
+    let mut file = tempfile().context(CreateTempfileCtx)?;
+    ActivateWindowsTemplate { pid }
+        .write_into(&mut file)
+        .context(RenderTemplateCtx)?;
     let temp_path: PathBuf = format!("/proc/{}/fd/{}", process::id(), file.as_raw_fd()).into();
     let script_id = load_script(conn, &temp_path).await.context(LoadScriptCtx)?;
     let object_path = format!("/Scripting/Script{script_id}");
