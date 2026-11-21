@@ -18,7 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       ref: refs/tags/v${{ steps.version.outputs.output }}
-      out-dir: ${{ steps.cargo-outdir.outputs.out-dir }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -53,13 +52,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -m "Release v${{ steps.version.outputs.output }}"
-
-      - name: Resolve Cargo output directory
-        id: cargo-outdir
-        shell: bash
-        run: |
-          out_dir=$(cargo outdir --no-names)
-          echo "out-dir=$out_dir" >> "$GITHUB_OUTPUT"
 
       - name: Publish
         run: cargo publish
@@ -98,6 +90,13 @@ jobs:
             cargo-outdir
             ${{ matrix.build-tool != 'cargo' && matrix.build-tool || '' }}
 
+      - name: Resolve Cargo output directory
+        id: cargo-outdir
+        shell: bash
+        run: |
+          out_dir=$(cargo outdir --no-names)
+          echo "out-dir=$out_dir" >> "$GITHUB_OUTPUT"
+
       - name: Compile and release
         uses: taiki-e/upload-rust-binary-action@v1
         with:
@@ -106,6 +105,4 @@ jobs:
           build-tool: ${{ matrix.build-tool }}
           ref: ${{ needs.create-release.outputs.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          include: |
-            ${{ needs.create-release.outputs.out-dir }}/completions
-            ${{ needs.create-release.outputs.out-dir }}/man
+          include: ${{ steps.cargo-outdir.outputs.out-dir }}/completions,${{ steps.cargo-outdir.outputs.out-dir }}/man
