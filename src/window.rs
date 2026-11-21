@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use crate::{service::Service, session::Session};
+use heapless::{String as StackString, format};
 use snafu::{ResultExt, Snafu};
 use std::{num::ParseIntError, path::Path};
 
@@ -23,13 +24,17 @@ pub enum ListSessionsError {
 }
 
 impl Window {
+    pub(crate) fn object_path(&self) -> StackString<20> {
+        unsafe { format!(20; "/Windows/{}", self.id).unwrap_unchecked() }
+    }
+
     pub async fn sessions(&self) -> Result<impl Iterator<Item = Session>, ListSessionsError> {
         Ok(self
             .service
             .conn
             .call_method(
                 Some(self.service.name.as_ref()),
-                format!("/Windows/{}", self.id),
+                self.object_path().as_str(),
                 Some("org.kde.konsole.Window"),
                 "sessionList",
                 &(),
@@ -55,7 +60,7 @@ impl Window {
             .conn
             .call_method(
                 Some(self.service.name.as_ref()),
-                format!("/Windows/{}", self.id),
+                self.object_path().as_str(),
                 Some("org.kde.konsole.Window"),
                 "currentSession",
                 &(),
@@ -75,7 +80,7 @@ impl Window {
             .conn
             .call_method(
                 Some(self.service.name.as_ref()),
-                format!("/Windows/{}", self.id),
+                self.object_path().as_str(),
                 Some("org.kde.konsole.Window"),
                 "newSession",
                 // Konsole uses the default profile when given an empty string.

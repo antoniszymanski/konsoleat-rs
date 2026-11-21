@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use crate::window::Window;
+use heapless::format;
 use procfs::{ProcError, process::Process};
 use snafu::{ResultExt, Snafu};
 use std::path::PathBuf;
@@ -21,7 +22,7 @@ impl Session {
             .conn
             .call_method(
                 Some(self.window.service.name.as_ref()),
-                format!("/Windows/{}", self.window.id),
+                self.window.object_path().as_str(),
                 Some("org.kde.konsole.Window"),
                 "setCurrentSession",
                 &(self.id),
@@ -32,12 +33,13 @@ impl Session {
     }
 
     pub async fn pid(&self) -> zbus::Result<i32> {
+        let object_path = unsafe { format!(21; "/Sessions/{}", self.id).unwrap_unchecked() };
         self.window
             .service
             .conn
             .call_method(
                 Some(self.window.service.name.as_ref()),
-                format!("/Sessions/{}", self.id),
+                object_path.as_str(),
                 Some("org.kde.konsole.Session"),
                 "processId",
                 &(),

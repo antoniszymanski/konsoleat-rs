@@ -2,13 +2,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use askama::Template;
+use heapless::format;
 use snafu::{ResultExt, Snafu};
-use std::{
-    io,
-    os::fd::AsRawFd,
-    path::{Path, PathBuf},
-    process,
-};
+use std::{io, os::fd::AsRawFd, path::Path, process};
 use tempfile::tempfile;
 use zbus::Connection;
 
@@ -38,9 +34,11 @@ pub async fn activate_windows(conn: &Connection, pid: u32) -> Result<(), Activat
     ActivateWindowsTemplate { pid }
         .write_into(&mut file)
         .context(RenderTemplateCtx)?;
-    let temp_path: PathBuf = format!("/proc/{}/fd/{}", process::id(), file.as_raw_fd()).into();
-    let script_id = load_script(conn, &temp_path).await.context(LoadScriptCtx)?;
-    let object_path = format!("/Scripting/Script{script_id}");
+    let temp_path = unsafe { format!(30; "/proc/{}/fd/{}", process::id(), file.as_raw_fd()).unwrap_unchecked() };
+    let script_id = load_script(conn, Path::new(temp_path.as_str()))
+        .await
+        .context(LoadScriptCtx)?;
+    let object_path = unsafe { format!(28; "/Scripting/Script{script_id}").unwrap_unchecked() };
     run_script(conn, &object_path).await.context(RunScriptCtx)?;
     stop_script(conn, &object_path).await.context(StopScriptCtx)
 }
