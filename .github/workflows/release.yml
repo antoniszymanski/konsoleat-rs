@@ -38,7 +38,7 @@ jobs:
           version: latest
           args: latest --remove-prefix
 
-      - name: Install release tools
+      - name: Install cargo-edit and cargo-outdir
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-edit cargo-outdir
