@@ -105,4 +105,6 @@ jobs:
           build-tool: ${{ matrix.build-tool }}
           ref: ${{ needs.create-release.outputs.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          include: ${{ steps.cargo-outdir.outputs.out-dir }}/completions,${{ steps.cargo-outdir.outputs.out-dir }}/man
+          include: |
+            ${{ steps.cargo-outdir.outputs.out-dir }}/completions
+            ${{ steps.cargo-outdir.outputs.out-dir }}/man
