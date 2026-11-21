@@ -18,6 +18,7 @@ zbus = "6.0.0"
 zbus_xml = "6.0.0"
 
 [build-dependencies]
+build-rs = "0.3.6"
 clap = { version = "4.5.53", features = ["derive"] }
 clap_complete_command = { version = "0.6.1", features = ["carapace", "nushell"] }
 clap_mangen = "0.3.3"
