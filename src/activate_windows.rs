@@ -35,9 +35,8 @@ pub async fn activate_windows(conn: &Connection, pid: u32) -> Result<(), Activat
         .write_into(&mut file)
         .context(RenderTemplateCtx)?;
     let temp_path = unsafe { format!(30; "/proc/{}/fd/{}", process::id(), file.as_raw_fd()).unwrap_unchecked() };
-    let script_id = load_script(conn, Path::new(temp_path.as_str()))
-        .await
-        .context(LoadScriptCtx)?;
+    #[rustfmt::skip]
+    let script_id = load_script(conn, Path::new(temp_path.as_str())).await.context(LoadScriptCtx)?;
     let object_path = unsafe { format!(28; "/Scripting/Script{script_id}").unwrap_unchecked() };
     run_script(conn, &object_path).await.context(RunScriptCtx)?;
     stop_script(conn, &object_path).await.context(StopScriptCtx)
