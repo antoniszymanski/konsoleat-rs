@@ -72,12 +72,7 @@ async fn async_main() -> Result<(), Error> {
     cli.workdir = fs::canonicalize(cli.workdir).context(CanonicalizeWorkdirCtx)?;
 
     let workdir_handle = Handle::from_path(&cli.workdir).context(ConstructHandleFromWorkdirCtx)?;
-    if !workdir_handle
-        .as_file()
-        .metadata()
-        .context(ReadWorkdirMetadataCtx)?
-        .is_dir()
-    {
+    if !workdir_handle.as_file().metadata().context(ReadWorkdirMetadataCtx)?.is_dir() {
         return Err(Error::WorkdirNotADirectory);
     }
 
@@ -116,10 +111,7 @@ async fn async_main() -> Result<(), Error> {
 
     let pid = match oldest_window {
         Some(oldest_window) => {
-            let session = oldest_window
-                .new_session(&cli.workdir)
-                .await
-                .context(CreateSessionCtx)?;
+            let session = oldest_window.new_session(&cli.workdir).await.context(CreateSessionCtx)?;
             session.set_current_session().await.context(SetCurrentSessionCtx)?;
             session.window.service.pid().await.context(GetServicePidCtx)?
         }
