@@ -38,10 +38,10 @@ jobs:
           version: latest
           args: latest --remove-prefix
 
-      - name: Install cargo-edit
+      - name: Install release tools
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-edit
+          tool: cargo-edit cargo-outdir
 
       - name: Set the version in Cargo.toml
         run: cargo set-version ${{ steps.version.outputs.output }}
@@ -52,6 +52,23 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -m "Release v${{ steps.version.outputs.output }}"
+
+      - name: Resolve Cargo output directory
+        id: cargo-outdir
+        run: |
+          out_dir=$(cargo outdir --no-names)
+          test -d "$out_dir/completions"
+          test -d "$out_dir/man"
+          echo "out-dir=$out_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Upload completions and man pages
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-assets
+          path: |
+            ${{ steps.cargo-outdir.outputs.out-dir }}/completions
+            ${{ steps.cargo-outdir.outputs.out-dir }}/man
+          if-no-files-found: error
 
       - name: Publish
         run: cargo publish
@@ -83,19 +100,16 @@ jobs:
         with:
           ref: ${{ needs.create-release.outputs.ref }}
 
-      - name: Install tools
+      - name: Download completions and man pages
+        uses: actions/download-artifact@v8
+        with:
+          name: release-assets
+
+      - if: ${{ matrix.build-tool != 'cargo' }}
+        name: Install ${{ matrix.build-tool }}
         uses: taiki-e/install-action@v2
         with:
-          tool: |
-            cargo-outdir
-            ${{ matrix.build-tool != 'cargo' && matrix.build-tool || '' }}
-
-      - name: Resolve Cargo output directory
-        id: cargo-outdir
-        shell: bash
-        run: |
-          out_dir=$(cargo outdir --no-names)
-          echo "out-dir=$out_dir" >> "$GITHUB_OUTPUT"
+          tool: ${{ matrix.build-tool }}
 
       - name: Compile and release
         uses: taiki-e/upload-rust-binary-action@v1
@@ -105,6 +119,4 @@ jobs:
           build-tool: ${{ matrix.build-tool }}
           ref: ${{ needs.create-release.outputs.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          include: |
-            ${{ steps.cargo-outdir.outputs.out-dir }}/completions
-            ${{ steps.cargo-outdir.outputs.out-dir }}/man
+          include: completions man
